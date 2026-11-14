@@ -9,6 +9,9 @@ Schlanker Mail-Client für iOS 26 (SwiftUI, Liquid Glass), ohne Fremdbibliotheke
 - Antworten, Allen antworten, Weiterleiten, Anhänge senden und öffnen, Kopie in "Gesendet"
 - Automatischer Abruf bei geöffneter App, im Hintergrund durch iOS mit Mitteilungen
 - E-Mails werden als Text angezeigt, HTML und Bilder erst nach Umschalten
+- Profil „Alle Konten“ mit gemeinsamem Ordner und kontoübergreifender Suche
+- Vertrauenswürdige Absender (Gruppe „Verifiziert“, HTML direkt an) und Spam-Absender (automatisch in Spam), per Gedrückthalten oder in den Einstellungen
+- Akzentfarbe frei wählbar
 - Passwörter im Schlüsselbund (AutoFill aus Passwortmanagern), E-Mails pro Konto getrennt
 
 ## Server

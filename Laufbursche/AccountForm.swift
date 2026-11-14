@@ -106,7 +106,7 @@ struct AccountForm: View {
                 if active {
                     Label("Eingetragen", systemImage: "checkmark.circle.fill")
                         .font(.subheadline)
-                        .foregroundStyle(accent)
+                        .foregroundStyle(.tint)
                         .transition(.scale.combined(with: .opacity))
                 }
             }

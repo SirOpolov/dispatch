@@ -2,23 +2,40 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-let accent = Color(UIColor { traits in
+let defaultAccent = Color(UIColor { traits in
     traits.userInterfaceStyle == .dark
         ? UIColor(red: 1.00, green: 0.68, blue: 0.40, alpha: 1)
         : UIColor(red: 0.85, green: 0.40, blue: 0.13, alpha: 1)
 })
 
+func accentColor(_ hex: String) -> Color {
+    let clean = hex.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
+    guard clean.count == 6, let value = Int(clean, radix: 16) else { return defaultAccent }
+    return Color(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)
+}
+
+func hexString(_ color: Color) -> String {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    let channel = { (value: CGFloat) in max(0, min(255, Int((value * 255).rounded()))) }
+    return String(format: "#%02X%02X%02X", channel(red), channel(green), channel(blue))
+}
+
 @main
 struct LaufburscheApp: App {
     @State private var store = Store()
     @AppStorage("theme") private var theme = 0
+    @AppStorage("accent") private var accent = ""
 
     var body: some Scene {
         let model = store
         WindowGroup {
             RootView()
                 .environment(model)
-                .tint(accent)
+                .tint(accentColor(accent))
                 .preferredColorScheme(theme == 1 ? .light : theme == 2 ? .dark : nil)
         }
         .backgroundTask(.appRefresh(refreshTask)) {
@@ -55,7 +72,7 @@ struct RootView: View {
         .task {
             _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
         }
-        .task(id: store.current?.id) {
+        .task(id: store.scope) {
             while !Task.isCancelled {
                 await store.sync()
                 try? await Task.sleep(for: .seconds(interval))
@@ -77,7 +94,7 @@ struct RootView: View {
         VStack(spacing: 20) {
             Image(systemName: "envelope.fill")
                 .font(.system(size: 64))
-                .foregroundStyle(accent)
+                .foregroundStyle(.tint)
             Text("Laufbursche")
                 .font(.largeTitle.bold())
             Button {

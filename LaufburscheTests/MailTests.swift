@@ -85,6 +85,16 @@ final class MailTests: XCTestCase {
         XCTAssertEqual(addresses("Max <max@web.de>, b@c.de; kein"), ["max@web.de", "b@c.de"])
     }
 
+    func testSenderRules() {
+        XCTAssertTrue(matches("*@web.de", "Max <max@WEB.de>"))
+        XCTAssertTrue(matches("@web.de", "max@web.de"))
+        XCTAssertTrue(matches("web.de", "max@web.de"))
+        XCTAssertTrue(matches("max@web.de", "Max <max@web.de>"))
+        XCTAssertFalse(matches("*@web.de", "max@notweb.de"))
+        XCTAssertFalse(matches("max@web.de", "moritz@web.de"))
+        XCTAssertFalse(matches("", "max@web.de"))
+    }
+
     func testSearch() {
         var parser = Parser(Data("* SEARCH 3 5 8\r\n".utf8))
         let numbers = parser.responses()[0].dropFirst(2).compactMap { Int($0.string) }

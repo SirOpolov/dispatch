@@ -37,6 +37,8 @@ struct Account: Codable, Identifiable, Hashable {
         case .read: "Gelesen"
         case .all: "Alle"
         case .favorites: "Favoriten"
+        case .verified: "Verifiziert"
+        case .shared: "Alle E-Mails"
         case .folder(let name):
             name == spam ? "Spam" : name == trash ? "Papierkorb" : name == sent ? "Gesendet" : folderName(name)
         }
@@ -48,6 +50,8 @@ struct Account: Codable, Identifiable, Hashable {
         case .read: return "envelope.open"
         case .all: return "tray.full"
         case .favorites: return "star"
+        case .verified: return "checkmark.seal"
+        case .shared: return "tray.2"
         case .folder(let name):
             let lower = folderName(name).lowercased()
             if name == spam { return "xmark.bin" }
@@ -71,9 +75,10 @@ struct Mail: Codable, Identifiable, Hashable {
     var seen: Bool
     var flagged: Bool
     var messageID: String
+    var account: UUID?
 
     var id: String {
-        folder + "/" + String(uid)
+        (account?.uuidString ?? "") + "/" + folder + "/" + String(uid)
     }
 
     var inbox: Bool {
@@ -82,18 +87,30 @@ struct Mail: Codable, Identifiable, Hashable {
 }
 
 enum Filter: Hashable {
-    case unread, read, all, favorites
+    case unread, read, all, favorites, verified, shared
     case folder(String)
+}
 
-    func matches(_ mail: Mail, trash: String?) -> Bool {
-        switch self {
-        case .unread: mail.inbox && !mail.seen
-        case .read: mail.inbox && mail.seen
-        case .all: mail.inbox
-        case .favorites: mail.flagged && mail.folder != trash
-        case .folder(let name): mail.folder == name
-        }
+enum Destination {
+    case inbox, spam, trash
+}
+
+func matches(_ rule: String, _ from: String) -> Bool {
+    let sender = address(from).lowercased()
+    var pattern = rule.trimmingCharacters(in: .whitespaces).lowercased()
+    if pattern.hasPrefix("*") {
+        pattern.removeFirst()
     }
+    if pattern.isEmpty {
+        return false
+    }
+    if pattern.hasPrefix("@") {
+        return sender.hasSuffix(pattern)
+    }
+    if !pattern.contains("@") {
+        return sender.hasSuffix("@" + pattern)
+    }
+    return sender == pattern
 }
 
 struct Attachment: Identifiable {
@@ -105,6 +122,7 @@ struct Attachment: Identifiable {
 
 struct Draft: Identifiable {
     let id = UUID()
+    var account: UUID?
     var to = ""
     var cc = ""
     var subject = ""

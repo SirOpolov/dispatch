@@ -75,7 +75,7 @@ struct MessageView: View {
         }
         .quickLookPreview($preview)
         .task(id: mail.id) {
-            render = false
+            render = store.isTrusted(mail)
             content = nil
             loading = true
             if let raw = await store.raw(mail) {
@@ -90,8 +90,19 @@ struct MessageView: View {
             Text(mail.subject.isEmpty ? "(Kein Betreff)" : mail.subject)
                 .font(.title3.bold())
                 .textSelection(.enabled)
-            Text(mail.from)
-                .font(.subheadline.weight(.medium))
+            HStack(spacing: 6) {
+                Text(mail.from)
+                    .font(.subheadline.weight(.medium))
+                if store.isTrusted(mail) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(.tint)
+                }
+            }
+            if store.unified, let owner {
+                Text("Konto: " + owner.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tint)
+            }
             Text("An: " + mail.to + (mail.cc.isEmpty ? "" : "\nCc: " + mail.cc))
                 .font(.caption)
                 .foregroundStyle(Color.secondary)
@@ -137,14 +148,31 @@ struct MessageView: View {
         } label: {
             Label("Als ungelesen markieren", systemImage: "envelope.badge")
         }
-        if let spam = store.current?.spam, mail.inbox {
-            moveButton("Als Spam markieren", "xmark.bin", spam, "In Spam verschoben")
+        if owner?.spam != nil && mail.inbox {
+            moveButton("Als Spam markieren", "xmark.bin", .spam, "In Spam verschoben")
         }
-        if mail.folder == store.current?.spam {
-            moveButton("Kein Spam", "tray.and.arrow.down", "INBOX", "In den Posteingang verschoben")
+        if mail.folder == owner?.spam {
+            moveButton("Kein Spam", "tray.and.arrow.down", .inbox, "In den Posteingang verschoben")
         }
-        if mail.folder == store.current?.trash {
-            moveButton("Wiederherstellen", "tray.and.arrow.up", "INBOX", "Wiederhergestellt")
+        if mail.folder == owner?.trash {
+            moveButton("Wiederherstellen", "tray.and.arrow.up", .inbox, "Wiederhergestellt")
+        }
+        Section(address(mail.from).lowercased()) {
+            Button {
+                store.trust(address(mail.from))
+                render = true
+            } label: {
+                Label("Absender vertrauen", systemImage: "checkmark.seal")
+            }
+            .disabled(store.isTrusted(mail))
+            Button(role: .destructive) {
+                close()
+                Task {
+                    await store.block(address(mail.from))
+                }
+            } label: {
+                Label("Absender ist Spam", systemImage: "xmark.bin")
+            }
         }
         Button(role: .destructive) {
             close()
@@ -152,11 +180,15 @@ struct MessageView: View {
                 await store.delete([mail])
             }
         } label: {
-            Label(mail.folder == store.current?.trash ? "Endgültig löschen" : "Löschen", systemImage: "trash")
+            Label(mail.folder == owner?.trash ? "Endgültig löschen" : "Löschen", systemImage: "trash")
         }
     }
 
-    private func moveButton(_ title: String, _ icon: String, _ target: String, _ text: String) -> some View {
+    private var owner: Account? {
+        store.account(of: mail)
+    }
+
+    private func moveButton(_ title: String, _ icon: String, _ target: Destination, _ text: String) -> some View {
         Button {
             close()
             Task {
@@ -185,10 +217,11 @@ struct MessageView: View {
     }
 
     private func reply(all: Bool) -> Draft {
-        let own = store.current?.email.lowercased() ?? ""
+        let own = owner?.email.lowercased() ?? ""
         let others = addresses(mail.to + "," + mail.cc).filter { $0.lowercased() != own }
         let quoted = original.components(separatedBy: "\n").map { "> " + $0 }.joined(separator: "\n")
         return Draft(
+            account: mail.account,
             to: address(mail.from),
             cc: all ? others.joined(separator: ", ") : "",
             subject: mail.subject.lowercased().hasPrefix("re:") ? mail.subject : "Re: " + mail.subject,
@@ -210,6 +243,7 @@ struct MessageView: View {
             original,
         ]
         return Draft(
+            account: mail.account,
             subject: mail.subject.lowercased().hasPrefix("fwd:") ? mail.subject : "Fwd: " + mail.subject,
             body: lines.joined(separator: "\n"),
             attachments: content?.attachments ?? []

@@ -20,7 +20,12 @@ struct ComposeView: View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Von", value: store.current?.email ?? "")
+                    Picker("Von", selection: $draft.account) {
+                        ForEach(store.accounts) { account in
+                            Text(account.email)
+                                .tag(Optional(account.id))
+                        }
+                    }
                     TextField("An", text: $draft.to)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
@@ -78,6 +83,11 @@ struct ComposeView: View {
                         }
                         .disabled(addresses(draft.to).isEmpty)
                     }
+                }
+            }
+            .onAppear {
+                if draft.account == nil {
+                    draft.account = store.current?.id
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in

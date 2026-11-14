@@ -1,18 +1,19 @@
+import PhotosUI
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 struct ComposeView: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var to: String
-    @State private var subject: String
-    @State private var text: String
+    @State private var draft: Draft
     @State private var sending = false
+    @State private var importing = false
+    @State private var photos: [PhotosPickerItem] = []
     @State private var failure: String?
 
-    init(to: String = "", subject: String = "", text: String = "") {
-        _to = State(initialValue: to)
-        _subject = State(initialValue: subject)
-        _text = State(initialValue: text)
+    init(draft: Draft = Draft()) {
+        _draft = State(initialValue: draft)
     }
 
     var body: some View {
@@ -20,18 +21,45 @@ struct ComposeView: View {
             Form {
                 Section {
                     LabeledContent("Von", value: store.current?.email ?? "")
-                    TextField("An", text: $to)
+                    TextField("An", text: $draft.to)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Betreff", text: $subject)
+                    TextField("Cc", text: $draft.cc)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("Betreff", text: $draft.subject)
                 }
                 Section {
-                    TextEditor(text: $text)
-                        .frame(minHeight: 320)
+                    TextEditor(text: $draft.body)
+                        .frame(minHeight: 280)
+                }
+                Section("Anhänge") {
+                    ForEach(draft.attachments) { attachment in
+                        HStack {
+                            Label(attachment.name, systemImage: "paperclip")
+                                .lineLimit(1)
+                            Spacer()
+                            Text(Int64(attachment.data.count).formatted(.byteCount(style: .file)))
+                                .font(.caption)
+                                .foregroundStyle(Color.secondary)
+                        }
+                    }
+                    .onDelete { offsets in
+                        draft.attachments.remove(atOffsets: offsets)
+                    }
+                    Button {
+                        importing = true
+                    } label: {
+                        Label("Datei anhängen", systemImage: "doc.badge.plus")
+                    }
+                    PhotosPicker(selection: $photos, matching: .images) {
+                        Label("Foto anhängen", systemImage: "photo.badge.plus")
+                    }
                 }
             }
-            .navigationTitle("Neue E-Mail")
+            .navigationTitle(draft.subject.isEmpty ? "Neue E-Mail" : draft.subject)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -48,9 +76,38 @@ struct ComposeView: View {
                         } label: {
                             Image(systemName: "paperplane.fill")
                         }
-                        .disabled(to.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(addresses(draft.to).isEmpty)
                     }
                 }
+            }
+            .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                guard case .success(let urls) = result else { return }
+                for url in urls {
+                    let access = url.startAccessingSecurityScopedResource()
+                    if let data = try? Data(contentsOf: url) {
+                        let type = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                        draft.attachments.append(Attachment(name: url.lastPathComponent, type: type, data: data))
+                    }
+                    if access {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+            }
+            .onChange(of: photos) {
+                let items = photos
+                guard !items.isEmpty else { return }
+                photos = []
+                Task {
+                    for item in items {
+                        if let data = try? await item.loadTransferable(type: Data.self), let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.8) {
+                            draft.attachments.append(Attachment(name: "Foto-" + String(draft.attachments.count + 1) + ".jpg", type: "image/jpeg", data: jpeg))
+                        }
+                    }
+                }
+            }
+            .sensoryFeedback(.selection, trigger: draft.attachments.count)
+            .sensoryFeedback(.error, trigger: failure) { _, new in
+                new != nil
             }
             .alert("Senden fehlgeschlagen", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
                 Button("OK") {}
@@ -64,7 +121,7 @@ struct ComposeView: View {
         sending = true
         Task {
             do {
-                try await store.send(to: to, subject: subject, body: text)
+                try await store.send(draft)
                 dismiss()
             } catch {
                 failure = error.localizedDescription

@@ -1,5 +1,19 @@
+import BackgroundTasks
 import Foundation
 import Observation
+import UserNotifications
+
+let refreshTask = "de.greismicha.laufbursche.refresh"
+
+func scheduleRefresh() {
+    let request = BGAppRefreshTaskRequest(identifier: refreshTask)
+    request.earliestBeginDate = .now.addingTimeInterval(15 * 60)
+    try? BGTaskScheduler.shared.submit(request)
+}
+
+func mailCount(_ count: Int) -> String {
+    count == 1 ? "1 E-Mail" : String(count) + " E-Mails"
+}
 
 @MainActor
 @Observable
@@ -10,6 +24,9 @@ class Store {
     var error: String?
     var log: [String] = []
     var lastSync: Date?
+    var toast: String?
+    var done = 0
+    var failed = 0
     var currentID: UUID? {
         didSet {
             UserDefaults.standard.set(currentID?.uuidString, forKey: "current")
@@ -32,8 +49,17 @@ class Store {
         accounts.first { $0.id == currentID } ?? accounts.first
     }
 
-    func count(_ filter: Filter) -> Int {
-        mails.filter(filter.matches).count
+    func list(_ filter: Filter) -> [Mail] {
+        mails.filter { filter.matches($0, trash: current?.trash) }
+    }
+
+    func unread(_ filter: Filter) -> Int {
+        list(filter).filter { !$0.seen }.count
+    }
+
+    func confirm(_ text: String) {
+        toast = text
+        done += 1
     }
 
     func connect(_ account: Account, password: String) async throws -> Account {
@@ -43,6 +69,8 @@ class Store {
         let folders = try await imap.folders()
         checked.spam = folders.spam
         checked.trash = folders.trash
+        checked.sent = folders.sent
+        checked.folders = folders.all
         let smtp = try await SMTP(account: account, password: password)
         smtp.close()
         return checked
@@ -58,6 +86,7 @@ class Store {
         saveAccounts()
         currentID = account.id
         note("Konto gespeichert: " + account.email)
+        confirm("Verbunden mit " + account.email)
     }
 
     func remove(_ account: Account) {
@@ -67,73 +96,71 @@ class Store {
         saveAccounts()
         currentID = accounts.first?.id
         note("Konto entfernt: " + account.email)
+        confirm("Konto entfernt")
     }
 
-    func sync() async {
-        guard var account = current, !syncing else { return }
+    @discardableResult
+    func sync() async -> Int {
+        guard let account = current, !syncing else { return 0 }
         syncing = true
         defer { syncing = false }
         do {
-            let imap = try await IMAP(account: account, password: loadPassword(for: account.id))
-            defer { imap.close() }
-            if account.spam == nil || account.trash == nil {
-                let folders = try await imap.folders()
-                account.spam = folders.spam
-                account.trash = folders.trash
-                updateAccount(account)
-            }
-            var all = loadMails(account.id)
-            var fresh = 0
-            for box in Box.allCases {
-                guard let folder = account.folder(box) else { continue }
-                try await imap.select(folder)
-                let uids = try await imap.search()
-                let present = Set(uids)
-                all.removeAll { $0.box == box && !present.contains($0.uid) }
-                if !uids.isEmpty {
-                    let flags = try await imap.flags()
-                    for index in all.indices where all[index].box == box {
-                        all[index].seen = flags[all[index].uid] ?? all[index].seen
-                    }
-                }
-                let known = Set(all.filter { $0.box == box }.map(\.uid))
-                let missing = Array(uids.filter { !known.contains($0) }.suffix(500))
-                let loaded = try await imap.headers(missing, box: box)
-                fresh += loaded.count
-                all += loaded
-            }
-            saveMails(all, account.id)
+            let fresh = try await download(account)
             if current?.id == account.id {
-                mails = all
                 error = nil
             }
             lastSync = .now
-            note(account.email + ": " + String(fresh) + " neu")
+            note(account.email + ": " + String(fresh.count) + " neu")
+            return fresh.count
         } catch {
-            fail(error)
+            self.error = error.localizedDescription
+            note("Fehler: " + error.localizedDescription)
+            return 0
+        }
+    }
+
+    func refresh() async {
+        let count = await sync()
+        if error == nil {
+            confirm(count == 0 ? "Keine neuen E-Mails" : mailCount(count) + " neu")
+        } else {
+            failed += 1
+        }
+    }
+
+    func backgroundSync() async {
+        guard !syncing else { return }
+        syncing = true
+        defer { syncing = false }
+        for account in accounts {
+            guard let fresh = try? await download(account) else { continue }
+            announce(fresh.filter { $0.inbox && !$0.seen }, account)
         }
     }
 
     func raw(_ mail: Mail) async -> Data? {
-        guard let account = current, let folder = account.folder(mail.box) else { return nil }
-        let file = directory(account.id).appending(path: mail.id + ".eml")
+        guard let account = current else { return nil }
+        let file = cacheFile(mail, account.id)
         if let data = try? Data(contentsOf: file) {
             if !mail.seen {
-                await setSeen(mail, true)
+                _ = await mark([mail], "\\Seen", true) { $0.seen = true }
             }
             return data
         }
         do {
             let data = try await withIMAP(account) { imap in
-                try await imap.select(folder)
+                try await imap.select(mail.folder)
                 let data = try await imap.body(mail.uid)
                 if !mail.seen {
-                    try await imap.setSeen(mail.uid, true)
+                    try await imap.store([mail.uid], "\\Seen", true)
                 }
                 return data
             }
             try? data.write(to: file)
-            update(mail) { $0.seen = true }
+            if let index = mails.firstIndex(where: { $0.id == mail.id }) {
+                mails[index].seen = true
+                saveMails(mails, account.id)
+            }
             return data
         } catch {
             fail(error)
@@ -141,49 +168,73 @@ class Store {
         }
     }
 
-    func setSeen(_ mail: Mail, _ seen: Bool) async {
-        guard let account = current, let folder = account.folder(mail.box) else { return }
-        update(mail) { $0.seen = seen }
-        do {
-            try await withIMAP(account) { imap in
-                try await imap.select(folder)
-                try await imap.setSeen(mail.uid, seen)
-            }
-        } catch {
-            fail(error)
+    func setSeen(_ list: [Mail], _ seen: Bool) async {
+        if await mark(list, "\\Seen", seen, { $0.seen = seen }) {
+            confirm(seen ? "Als gelesen markiert" : "Als ungelesen markiert")
         }
     }
 
-    func move(_ mail: Mail, to box: Box) async {
-        guard let account = current, let folder = account.folder(mail.box) else { return }
-        mails.removeAll { $0.id == mail.id }
+    func setFlagged(_ list: [Mail], _ flagged: Bool) async {
+        if await mark(list, "\\Flagged", flagged, { $0.flagged = flagged }) {
+            confirm(flagged ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt")
+        }
+    }
+
+    func delete(_ list: [Mail]) async {
+        let trash = current?.trash
+        let permanent = list.filter { trash == nil || $0.folder == trash }
+        let rest = list.filter { trash != nil && $0.folder != trash }
+        await move(rest, to: trash, mailCount(rest.count) + " in den Papierkorb gelegt")
+        await move(permanent, to: nil, mailCount(permanent.count) + " endgültig gelöscht")
+    }
+
+    func move(_ list: [Mail], to target: String?, _ text: String) async {
+        guard let account = current, !list.isEmpty else { return }
+        let ids = Set(list.map(\.id))
+        mails.removeAll { ids.contains($0.id) }
         saveMails(mails, account.id)
-        try? FileManager.default.removeItem(at: directory(account.id).appending(path: mail.id + ".eml"))
+        for mail in list {
+            try? FileManager.default.removeItem(at: cacheFile(mail, account.id))
+        }
         do {
             try await withIMAP(account) { imap in
-                try await imap.select(folder)
-                if let target = account.folder(box), box != mail.box {
-                    try await imap.move(mail.uid, to: target)
-                } else {
-                    try await imap.expunge(mail.uid)
+                for (folder, group) in Dictionary(grouping: list, by: \.folder) {
+                    try await imap.select(folder)
+                    if let target, target != folder {
+                        try await imap.move(group.map(\.uid), to: target)
+                    } else {
+                        try await imap.expunge(group.map(\.uid))
+                    }
                 }
             }
+            confirm(text)
         } catch {
             fail(error)
         }
         await sync()
     }
 
-    func send(to: String, subject: String, body: String) async throws {
+    func send(_ draft: Draft) async throws {
         guard let account = current else { return }
-        let recipients = to.split { $0 == "," || $0 == ";" }.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let recipients = addresses(draft.to) + addresses(draft.cc)
         guard !recipients.isEmpty else {
-            throw MailError("Kein Empfänger angegeben")
+            throw MailError("Kein gültiger Empfänger angegeben")
         }
+        let data = message(account: account, draft: draft)
         let smtp = try await SMTP(account: account, password: loadPassword(for: account.id))
         defer { smtp.close() }
-        try await smtp.deliver(from: account.email, to: recipients, message: message(account: account, to: recipients, subject: subject, body: body))
+        try await smtp.deliver(from: account.email, to: recipients, message: data)
         note("Gesendet an " + recipients.joined(separator: ", "))
+        if let sent = account.sent {
+            do {
+                try await withIMAP(account) { imap in
+                    try await imap.append(data, to: sent)
+                }
+            } catch {
+                note("Ablage in Gesendet fehlgeschlagen: " + error.localizedDescription)
+            }
+        }
+        confirm("Gesendet")
     }
 
     func clearCache() {
@@ -191,18 +242,95 @@ class Store {
         try? FileManager.default.removeItem(at: directory(account.id))
         mails = []
         note("Cache geleert: " + account.email)
+        confirm("Cache geleert")
+    }
+
+    func rediscover() {
+        guard var account = current else { return }
+        account.folders = nil
+        updateAccount(account)
+        confirm("Ordner werden neu gesucht")
+        Task {
+            await sync()
+        }
+    }
+
+    private func download(_ original: Account) async throws -> [Mail] {
+        var account = original
+        let imap = try await IMAP(account: account, password: loadPassword(for: account.id))
+        defer { imap.close() }
+        if account.folders == nil {
+            let folders = try await imap.folders()
+            account.spam = folders.spam
+            account.trash = folders.trash
+            account.sent = folders.sent
+            account.folders = folders.all
+            updateAccount(account)
+        }
+        var all = loadMails(account.id)
+        let first = all.isEmpty
+        var fresh: [Mail] = []
+        for folder in account.syncedFolders {
+            try await imap.select(folder)
+            let uids = try await imap.search()
+            let present = Set(uids)
+            all.removeAll { $0.folder == folder && !present.contains($0.uid) }
+            if !uids.isEmpty {
+                let flags = try await imap.flags()
+                for index in all.indices where all[index].folder == folder {
+                    if let flag = flags[all[index].uid] {
+                        all[index].seen = flag.seen
+                        all[index].flagged = flag.flagged
+                    }
+                }
+            }
+            let known = Set(all.filter { $0.folder == folder }.map(\.uid))
+            let loaded = try await imap.headers(uids.filter { !known.contains($0) }, folder: folder)
+            all += loaded
+            fresh += loaded
+        }
+        saveMails(all, account.id)
+        if current?.id == account.id {
+            mails = all
+        }
+        return first ? [] : fresh
+    }
+
+    private func announce(_ list: [Mail], _ account: Account) {
+        guard !list.isEmpty else { return }
+        let content = UNMutableNotificationContent()
+        content.title = list.count == 1 ? senderName(list[0].from) : mailCount(list.count) + " neu"
+        content.subtitle = account.title
+        content.body = list.count == 1 ? list[0].subject : list.prefix(5).map { senderName($0.from) }.joined(separator: ", ")
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
+    private func mark(_ list: [Mail], _ flag: String, _ on: Bool, _ change: (inout Mail) -> Void) async -> Bool {
+        guard let account = current, !list.isEmpty else { return false }
+        let ids = Set(list.map(\.id))
+        for index in mails.indices where ids.contains(mails[index].id) {
+            change(&mails[index])
+        }
+        saveMails(mails, account.id)
+        do {
+            try await withIMAP(account) { imap in
+                for (folder, group) in Dictionary(grouping: list, by: \.folder) {
+                    try await imap.select(folder)
+                    try await imap.store(group.map(\.uid), flag, on)
+                }
+            }
+            return true
+        } catch {
+            fail(error)
+            return false
+        }
     }
 
     private func withIMAP<T>(_ account: Account, _ work: (IMAP) async throws -> T) async throws -> T {
         let imap = try await IMAP(account: account, password: loadPassword(for: account.id))
         defer { imap.close() }
         return try await work(imap)
-    }
-
-    private func update(_ mail: Mail, _ change: (inout Mail) -> Void) {
-        guard let account = current, let index = mails.firstIndex(where: { $0.id == mail.id }) else { return }
-        change(&mails[index])
-        saveMails(mails, account.id)
     }
 
     private func updateAccount(_ account: Account) {
@@ -213,6 +341,8 @@ class Store {
 
     private func fail(_ error: Error) {
         self.error = error.localizedDescription
+        toast = error.localizedDescription
+        failed += 1
         note("Fehler: " + error.localizedDescription)
     }
 
@@ -229,13 +359,21 @@ class Store {
         return url
     }
 
+    private func cacheFile(_ mail: Mail, _ id: UUID) -> URL {
+        directory(id).appending(path: mail.id.replacingOccurrences(of: "/", with: "_") + ".eml")
+    }
+
+    private func mailsFile(_ id: UUID) -> URL {
+        directory(id).appending(path: "mails.json")
+    }
+
     private func loadMails(_ id: UUID?) -> [Mail] {
-        guard let id, let data = try? Data(contentsOf: directory(id).appending(path: "mails.json")) else { return [] }
+        guard let id, let data = try? Data(contentsOf: mailsFile(id)) else { return [] }
         return (try? JSONDecoder().decode([Mail].self, from: data)) ?? []
     }
 
     private func saveMails(_ mails: [Mail], _ id: UUID) {
-        try? JSONEncoder().encode(mails).write(to: directory(id).appending(path: "mails.json"))
+        try? JSONEncoder().encode(mails).write(to: mailsFile(id))
     }
 
     private func saveAccounts() {

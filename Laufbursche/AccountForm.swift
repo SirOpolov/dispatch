@@ -22,15 +22,13 @@ struct AccountForm: View {
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .textContentType(.username)
                 SecureField(editing ? "Passwort (unverändert)" : "Passwort", text: $password)
+                    .textContentType(.password)
             }
             Section {
-                Button("Strato") {
-                    preset("imap.strato.de", 993, "smtp.strato.de", 465)
-                }
-                Button("WEB.DE") {
-                    preset("imap.web.de", 993, "smtp.web.de", 587)
-                }
+                presetButton("Strato", "imap.strato.de", 993, "smtp.strato.de", 465)
+                presetButton("WEB.DE", "imap.web.de", 993, "smtp.web.de", 587)
             } header: {
                 Text("Server vorbelegen")
             } footer: {
@@ -64,6 +62,10 @@ struct AccountForm: View {
                 }
             }
         }
+        .sensoryFeedback(.selection, trigger: account.imapHost)
+        .sensoryFeedback(.error, trigger: failure) { _, new in
+            new != nil
+        }
         .navigationTitle(editing ? account.title : "Konto hinzufügen")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -87,11 +89,28 @@ struct AccountForm: View {
         }
     }
 
-    private func preset(_ imapHost: String, _ imapPort: Int, _ smtpHost: String, _ smtpPort: Int) {
-        account.imapHost = imapHost
-        account.imapPort = imapPort
-        account.smtpHost = smtpHost
-        account.smtpPort = smtpPort
+    private func presetButton(_ title: String, _ imapHost: String, _ imapPort: Int, _ smtpHost: String, _ smtpPort: Int) -> some View {
+        let active = account.imapHost == imapHost && account.imapPort == imapPort && account.smtpHost == smtpHost && account.smtpPort == smtpPort
+        return Button {
+            withAnimation {
+                account.imapHost = imapHost
+                account.imapPort = imapPort
+                account.smtpHost = smtpHost
+                account.smtpPort = smtpPort
+            }
+        } label: {
+            HStack {
+                Text(title)
+                    .foregroundStyle(Color.primary)
+                Spacer()
+                if active {
+                    Label("Eingetragen", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(accent)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+        }
     }
 
     private func connect() {

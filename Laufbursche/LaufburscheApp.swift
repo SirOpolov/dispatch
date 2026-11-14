@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 let accent = Color(UIColor { traits in
     traits.userInterfaceStyle == .dark
@@ -13,11 +14,16 @@ struct LaufburscheApp: App {
     @AppStorage("theme") private var theme = 0
 
     var body: some Scene {
+        let model = store
         WindowGroup {
             RootView()
-                .environment(store)
+                .environment(model)
                 .tint(accent)
                 .preferredColorScheme(theme == 1 ? .light : theme == 2 ? .dark : nil)
+        }
+        .backgroundTask(.appRefresh(refreshTask)) {
+            scheduleRefresh()
+            await model.backgroundSync()
         }
     }
 }
@@ -36,10 +42,18 @@ struct RootView: View {
                 MailboxView()
             }
         }
+        .overlay(alignment: .bottom) {
+            Toast()
+        }
+        .sensoryFeedback(.success, trigger: store.done)
+        .sensoryFeedback(.error, trigger: store.failed)
         .sheet(isPresented: $adding) {
             NavigationStack {
                 AccountForm()
             }
+        }
+        .task {
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
         }
         .task(id: store.current?.id) {
             while !Task.isCancelled {
@@ -52,6 +66,9 @@ struct RootView: View {
                 Task {
                     await store.sync()
                 }
+            }
+            if phase == .background {
+                scheduleRefresh()
             }
         }
     }
@@ -72,6 +89,38 @@ struct RootView: View {
                     .padding(.vertical, 6)
             }
             .buttonStyle(.glassProminent)
+        }
+    }
+}
+
+struct Toast: View {
+    @Environment(Store.self) private var store
+
+    var body: some View {
+        ZStack {
+            if let text = store.toast {
+                Text(text)
+                    .font(.subheadline.weight(.medium))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .glassEffect(.regular, in: Capsule())
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 60)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onTapGesture {
+                        store.toast = nil
+                    }
+            }
+        }
+        .animation(.spring(duration: 0.3), value: store.toast)
+        .task(id: store.done + store.failed) {
+            do {
+                try await Task.sleep(for: .seconds(2.5))
+                store.toast = nil
+            } catch {
+                return
+            }
         }
     }
 }

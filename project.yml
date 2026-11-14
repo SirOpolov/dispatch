@@ -15,6 +15,13 @@ targets:
     platform: iOS
     sources:
       - Laufbursche
+    info:
+      path: Laufbursche/Info.plist
+      properties:
+        BGTaskSchedulerPermittedIdentifiers:
+          - de.greismicha.laufbursche.refresh
+        UIBackgroundModes:
+          - fetch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.greismicha.laufbursche

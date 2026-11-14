@@ -50,15 +50,29 @@ struct SettingsView: View {
                         Text("5 Minuten").tag(300)
                         Text("15 Minuten").tag(900)
                     }
-                    Button("Jetzt abrufen") {
+                    Button {
                         Task {
-                            await store.sync()
+                            await store.refresh()
+                        }
+                    } label: {
+                        HStack {
+                            Text("Jetzt abrufen")
+                            Spacer()
+                            if store.syncing {
+                                ProgressView()
+                            }
                         }
                     }
+                    .disabled(store.syncing)
                     LabeledContent("Letzter Abruf", value: store.lastSync?.formatted(date: .omitted, time: .standard) ?? "–")
                     LabeledContent("E-Mails im Cache", value: String(store.mails.count))
                     LabeledContent("Spam-Ordner", value: store.current?.spam ?? "–")
                     LabeledContent("Papierkorb-Ordner", value: store.current?.trash ?? "–")
+                    LabeledContent("Gesendet-Ordner", value: store.current?.sent ?? "–")
+                    LabeledContent("Ordner gesamt", value: String(store.current?.folders?.count ?? 0))
+                    Button("Ordner neu suchen") {
+                        store.rediscover()
+                    }
                     NavigationLink("Protokoll") {
                         List(Array(store.log.enumerated().reversed()), id: \.offset) { entry in
                             Text(entry.element)
@@ -73,8 +87,11 @@ struct SettingsView: View {
                 } header: {
                     Text("Entwickler")
                 } footer: {
-                    Text("Abgerufen wird, solange die App geöffnet ist, und beim Zurückkehren in die App.")
+                    Text("Bei geöffneter App wird im gewählten Abstand abgerufen. Im Hintergrund prüft iOS gelegentlich selbst und meldet neue E-Mails als Mitteilung.")
                 }
+            }
+            .overlay(alignment: .bottom) {
+                Toast()
             }
             .navigationTitle("Einstellungen")
             .navigationBarTitleDisplayMode(.inline)

@@ -4,7 +4,7 @@ struct MailContent {
     var text: String?
     var html: String?
     var images: [String: String] = [:]
-    var attachments: [String] = []
+    var attachments: [Attachment] = []
 }
 
 func parseMail(_ raw: Data) -> MailContent {
@@ -149,7 +149,7 @@ private func walk(_ data: Data, into content: inout MailContent) {
         content.images[id] = "data:" + type + ";base64," + decoded.base64EncodedString()
     }
     if disposition.lowercased().hasPrefix("attachment") || (filename != nil && id == nil) {
-        content.attachments.append(decodeWords(filename ?? "Anhang"))
+        content.attachments.append(Attachment(name: decodeWords(filename ?? "Anhang"), type: type, data: decoded))
         return
     }
     let charset = parameter(contentType, "charset")

@@ -53,7 +53,7 @@ final class MailTests: XCTestCase {
         let content = parseMail(Data(raw.utf8))
         XCTAssertEqual(content.text, "Schöne Grüße")
         XCTAssertEqual(content.html, "<p>Hallo</p><img src=\"cid:logo\">")
-        XCTAssertEqual(content.attachments, ["Rechnung.pdf"])
+        XCTAssertEqual(content.attachments.map(\.name), ["Rechnung.pdf"])
         XCTAssertTrue(htmlDocument(content).contains("data:image/png;base64,iVBORw0KGgo="))
         XCTAssertEqual(stripHTML("<style>p{}</style><p>Hallo&nbsp;Welt</p>"), "Hallo Welt")
     }
@@ -67,6 +67,22 @@ final class MailTests: XCTestCase {
         XCTAssertEqual(parseHeaders(items[0]["BODY"]?.data ?? Data())["subject"], "Test")
         XCTAssertEqual(items[1]["UID"]?.string, "43")
         XCTAssertFalse(isSeen(items[1]["FLAGS"]))
+    }
+
+    func testFolderNames() {
+        XCTAssertEqual(folderName("Gel&APY-scht"), "Gelöscht")
+        XCTAssertEqual(folderName("INBOX.Entw&APw-rfe"), "Entwürfe")
+        XCTAssertEqual(folderName("Tom &- Jerry"), "Tom & Jerry")
+    }
+
+    func testOutgoingMessage() {
+        var account = Account()
+        account.email = "ich@web.de"
+        let draft = Draft(to: "Max <max@web.de>", subject: "Grüße", body: "Hallo", attachments: [Attachment(name: "a.txt", type: "text/plain", data: Data("x".utf8))])
+        let content = parseMail(message(account: account, draft: draft))
+        XCTAssertEqual(content.text, "Hallo")
+        XCTAssertEqual(content.attachments.map(\.name), ["a.txt"])
+        XCTAssertEqual(addresses("Max <max@web.de>, b@c.de; kein"), ["max@web.de", "b@c.de"])
     }
 
     func testSearch() {

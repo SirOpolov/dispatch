@@ -1,3 +1,4 @@
+import QuickLook
 import SwiftUI
 import WebKit
 
@@ -8,7 +9,8 @@ struct MessageView: View {
     @State private var content: MailContent?
     @State private var loading = true
     @State private var render = false
-    @State private var replying = false
+    @State private var draft: Draft?
+    @State private var preview: URL?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,7 +38,28 @@ struct MessageView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    replying = true
+                    Task {
+                        await store.setFlagged([mail], !mail.flagged)
+                    }
+                } label: {
+                    Image(systemName: mail.flagged ? "star.fill" : "star")
+                }
+                Menu {
+                    Button {
+                        draft = reply(all: false)
+                    } label: {
+                        Label("Antworten", systemImage: "arrowshape.turn.up.left")
+                    }
+                    Button {
+                        draft = reply(all: true)
+                    } label: {
+                        Label("Allen antworten", systemImage: "arrowshape.turn.up.left.2")
+                    }
+                    Button {
+                        draft = forward
+                    } label: {
+                        Label("Weiterleiten", systemImage: "arrowshape.turn.up.right")
+                    }
                 } label: {
                     Image(systemName: "arrowshape.turn.up.left")
                 }
@@ -47,9 +70,10 @@ struct MessageView: View {
                 }
             }
         }
-        .sheet(isPresented: $replying) {
-            ComposeView(to: address(mail.from), subject: replySubject, text: replyText)
+        .sheet(item: $draft) { draft in
+            ComposeView(draft: draft)
         }
+        .quickLookPreview($preview)
         .task(id: mail.id) {
             render = false
             content = nil
@@ -68,17 +92,31 @@ struct MessageView: View {
                 .textSelection(.enabled)
             Text(mail.from)
                 .font(.subheadline.weight(.medium))
-            Text("An: " + mail.to)
+            Text("An: " + mail.to + (mail.cc.isEmpty ? "" : "\nCc: " + mail.cc))
                 .font(.caption)
                 .foregroundStyle(Color.secondary)
-                .lineLimit(2)
+                .lineLimit(3)
             Text(mail.date.formatted(date: .long, time: .shortened))
                 .font(.caption)
                 .foregroundStyle(Color.secondary)
             if let attachments = content?.attachments, !attachments.isEmpty {
-                Label(attachments.joined(separator: ", "), systemImage: "paperclip")
-                    .font(.caption)
-                    .lineLimit(2)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(attachments) { attachment in
+                            Button {
+                                open(attachment)
+                            } label: {
+                                Label(attachment.name, systemImage: "paperclip")
+                                    .font(.caption.weight(.medium))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.glass)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
             }
             Toggle("HTML und Bilder darstellen", isOn: $render)
                 .font(.subheadline)
@@ -94,49 +132,88 @@ struct MessageView: View {
         Button {
             close()
             Task {
-                await store.setSeen(mail, false)
+                await store.setSeen([mail], false)
             }
         } label: {
             Label("Als ungelesen markieren", systemImage: "envelope.badge")
         }
-        if mail.box == .inbox {
-            moveButton("Als Spam markieren", "xmark.bin", .spam)
+        if let spam = store.current?.spam, mail.inbox {
+            moveButton("Als Spam markieren", "xmark.bin", spam, "In Spam verschoben")
         }
-        if mail.box == .spam {
-            moveButton("Kein Spam", "tray.and.arrow.down", .inbox)
+        if mail.folder == store.current?.spam {
+            moveButton("Kein Spam", "tray.and.arrow.down", "INBOX", "In den Posteingang verschoben")
         }
-        if mail.box == .trash {
-            moveButton("Wiederherstellen", "tray.and.arrow.up", .inbox)
+        if mail.folder == store.current?.trash {
+            moveButton("Wiederherstellen", "tray.and.arrow.up", "INBOX", "Wiederhergestellt")
         }
         Button(role: .destructive) {
             close()
             Task {
-                await store.move(mail, to: .trash)
+                await store.delete([mail])
             }
         } label: {
-            Label(mail.box == .trash ? "Endgültig löschen" : "Löschen", systemImage: "trash")
+            Label(mail.folder == store.current?.trash ? "Endgültig löschen" : "Löschen", systemImage: "trash")
         }
     }
 
-    private func moveButton(_ title: String, _ icon: String, _ box: Box) -> some View {
+    private func moveButton(_ title: String, _ icon: String, _ target: String, _ text: String) -> some View {
         Button {
             close()
             Task {
-                await store.move(mail, to: box)
+                await store.move([mail], to: target, text)
             }
         } label: {
             Label(title, systemImage: icon)
         }
     }
 
-    private var replySubject: String {
-        mail.subject.lowercased().hasPrefix("re:") ? mail.subject : "Re: " + mail.subject
+    private func open(_ attachment: Attachment) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: attachment.id.uuidString)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appending(path: attachment.name.replacingOccurrences(of: "/", with: "_"))
+        do {
+            try attachment.data.write(to: file)
+            preview = file
+        } catch {
+            store.toast = "Anhang konnte nicht geöffnet werden"
+            store.failed += 1
+        }
     }
 
-    private var replyText: String {
-        let original = content.map(plainText) ?? ""
+    private var original: String {
+        content.map(plainText) ?? ""
+    }
+
+    private func reply(all: Bool) -> Draft {
+        let own = store.current?.email.lowercased() ?? ""
+        let others = addresses(mail.to + "," + mail.cc).filter { $0.lowercased() != own }
         let quoted = original.components(separatedBy: "\n").map { "> " + $0 }.joined(separator: "\n")
-        return "\n\nAm " + mail.date.formatted(date: .numeric, time: .shortened) + " schrieb " + mail.from + ":\n" + quoted
+        return Draft(
+            to: address(mail.from),
+            cc: all ? others.joined(separator: ", ") : "",
+            subject: mail.subject.lowercased().hasPrefix("re:") ? mail.subject : "Re: " + mail.subject,
+            body: "\n\nAm " + mail.date.formatted(date: .numeric, time: .shortened) + " schrieb " + mail.from + ":\n" + quoted,
+            reply: mail.messageID
+        )
+    }
+
+    private var forward: Draft {
+        let lines = [
+            "",
+            "",
+            "---------- Weitergeleitete Nachricht ----------",
+            "Von: " + mail.from,
+            "Datum: " + mail.date.formatted(date: .long, time: .shortened),
+            "Betreff: " + mail.subject,
+            "An: " + mail.to,
+            "",
+            original,
+        ]
+        return Draft(
+            subject: mail.subject.lowercased().hasPrefix("fwd:") ? mail.subject : "Fwd: " + mail.subject,
+            body: lines.joined(separator: "\n"),
+            attachments: content?.attachments ?? []
+        )
     }
 }
 

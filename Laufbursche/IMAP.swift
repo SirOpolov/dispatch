@@ -163,8 +163,19 @@ func fetches(_ response: Data) -> [[String: Token]] {
     }
 }
 
+func hasFlag(_ flags: Token?, _ name: String) -> Bool {
+    flags?.items.contains { $0.string.lowercased() == name } ?? false
+}
+
 func isSeen(_ flags: Token?) -> Bool {
-    flags?.items.contains { $0.string.lowercased() == "\\seen" } ?? false
+    hasFlag(flags, "\\seen")
+}
+
+struct Folders {
+    var spam: String?
+    var trash: String?
+    var sent: String?
+    var all: [String]
 }
 
 func quote(_ text: String) -> String {
@@ -192,9 +203,29 @@ class IMAP {
 
     @discardableResult
     func command(_ text: String) async throws -> Data {
-        counter += 1
-        let tag = "A" + String(counter)
+        let tag = nextTag()
         try await connection.send(tag + " " + text + "\r\n")
+        return try await finish(tag)
+    }
+
+    func append(_ message: Data, to folder: String) async throws {
+        let tag = nextTag()
+        try await connection.send(tag + " APPEND " + quote(folder) + " (\\Seen) {" + String(message.count) + "}\r\n")
+        let line = try await connection.line()
+        guard line.first == 43 else {
+            throw MailError(String(decoding: line, as: UTF8.self))
+        }
+        try await connection.write(message + Data("\r\n".utf8))
+        try await finish(tag)
+    }
+
+    private func nextTag() -> String {
+        counter += 1
+        return "A" + String(counter)
+    }
+
+    @discardableResult
+    private func finish(_ tag: String) async throws -> Data {
         let prefix = Data((tag + " ").utf8)
         let newline = Data("\r\n".utf8)
         var response = Data()
@@ -218,7 +249,7 @@ class IMAP {
         }
     }
 
-    func folders() async throws -> (spam: String?, trash: String?) {
+    func folders() async throws -> Folders {
         var parser = Parser(try await command("LIST \"\" \"*\""))
         let entries = parser.responses().filter { $0.count >= 5 && $0[1].string.uppercased() == "LIST" }.map { tokens in
             let name = tokens[4].string
@@ -226,11 +257,15 @@ class IMAP {
             let last = delimiter.isEmpty || delimiter == "NIL" ? name : name.components(separatedBy: delimiter).last ?? name
             return (attributes: tokens[2].items.map { $0.string.lowercased() }, name: name, last: last.lowercased())
         }
-        let spamNames = ["spam", "junk", "junk e-mail", "junk-e-mail", "spamverdacht"]
-        let trashNames = ["trash", "papierkorb", "deleted", "deleted items", "deleted messages", "gel&apy-scht"]
-        let spam = entries.first { $0.attributes.contains("\\junk") }?.name ?? entries.first { spamNames.contains($0.last) }?.name
-        let trash = entries.first { $0.attributes.contains("\\trash") }?.name ?? entries.first { trashNames.contains($0.last) }?.name
-        return (spam, trash)
+        func find(_ attribute: String, _ names: [String]) -> String? {
+            entries.first { $0.attributes.contains(attribute) }?.name ?? entries.first { names.contains($0.last) }?.name
+        }
+        return Folders(
+            spam: find("\\junk", ["spam", "junk", "junk e-mail", "junk-e-mail", "spamverdacht"]),
+            trash: find("\\trash", ["trash", "papierkorb", "deleted", "deleted items", "deleted messages", "gel&apy-scht"]),
+            sent: find("\\sent", ["sent", "gesendet", "gesendete objekte", "gesendete elemente", "sent items", "sent messages"]),
+            all: entries.filter { !$0.attributes.contains("\\noselect") && !$0.attributes.contains("\\nonexistent") }.map(\.name)
+        )
     }
 
     func select(_ folder: String) async throws {
@@ -244,32 +279,35 @@ class IMAP {
             .flatMap { $0.dropFirst(2).compactMap { Int($0.string) } }
     }
 
-    func flags() async throws -> [Int: Bool] {
-        var result: [Int: Bool] = [:]
+    func flags() async throws -> [Int: (seen: Bool, flagged: Bool)] {
+        var result: [Int: (seen: Bool, flagged: Bool)] = [:]
         for item in fetches(try await command("UID FETCH 1:* (UID FLAGS)")) {
             if let uid = Int(item["UID"]?.string ?? "") {
-                result[uid] = isSeen(item["FLAGS"])
+                result[uid] = (isSeen(item["FLAGS"]), hasFlag(item["FLAGS"], "\\flagged"))
             }
         }
         return result
     }
 
-    func headers(_ uids: [Int], box: Box) async throws -> [Mail] {
+    func headers(_ uids: [Int], folder: String) async throws -> [Mail] {
         var mails: [Mail] = []
         for start in stride(from: 0, to: uids.count, by: 100) {
             let chunk = uids[start..<min(start + 100, uids.count)].map(String.init).joined(separator: ",")
-            let response = try await command("UID FETCH " + chunk + " (UID FLAGS BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE)])")
+            let response = try await command("UID FETCH " + chunk + " (UID FLAGS BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID)])")
             for item in fetches(response) {
                 guard let uid = Int(item["UID"]?.string ?? "") else { continue }
                 let headers = parseHeaders(item["BODY"]?.data ?? Data())
                 mails.append(Mail(
                     uid: uid,
-                    box: box,
+                    folder: folder,
                     from: decodeWords(headers["from"] ?? ""),
                     to: decodeWords(headers["to"] ?? ""),
+                    cc: decodeWords(headers["cc"] ?? ""),
                     subject: decodeWords(headers["subject"] ?? ""),
                     date: parseDate(headers["date"]) ?? .now,
-                    seen: isSeen(item["FLAGS"])
+                    seen: isSeen(item["FLAGS"]),
+                    flagged: hasFlag(item["FLAGS"], "\\flagged"),
+                    messageID: headers["message-id"] ?? ""
                 ))
             }
         }
@@ -284,22 +322,26 @@ class IMAP {
         return body.data
     }
 
-    func setSeen(_ uid: Int, _ seen: Bool) async throws {
-        try await command("UID STORE " + String(uid) + (seen ? " +" : " -") + "FLAGS.SILENT (\\Seen)")
+    func store(_ uids: [Int], _ flag: String, _ on: Bool) async throws {
+        try await command("UID STORE " + set(uids) + (on ? " +" : " -") + "FLAGS.SILENT (" + flag + ")")
     }
 
-    func move(_ uid: Int, to folder: String) async throws {
+    func move(_ uids: [Int], to folder: String) async throws {
         do {
-            try await command("UID MOVE " + String(uid) + " " + quote(folder))
+            try await command("UID MOVE " + set(uids) + " " + quote(folder))
         } catch {
-            try await command("UID COPY " + String(uid) + " " + quote(folder))
-            try await expunge(uid)
+            try await command("UID COPY " + set(uids) + " " + quote(folder))
+            try await expunge(uids)
         }
     }
 
-    func expunge(_ uid: Int) async throws {
-        try await command("UID STORE " + String(uid) + " +FLAGS.SILENT (\\Deleted)")
+    func expunge(_ uids: [Int]) async throws {
+        try await store(uids, "\\Deleted", true)
         try await command("EXPUNGE")
+    }
+
+    private func set(_ uids: [Int]) -> String {
+        uids.map(String.init).joined(separator: ",")
     }
 
     private func literalSize(_ line: Data) -> Int? {

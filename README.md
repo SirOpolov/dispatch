@@ -4,10 +4,12 @@ Schlanker Mail-Client für iOS 26 (SwiftUI, Liquid Glass), ohne Fremdbibliotheke
 
 - Ein Profil pro E-Mail-Adresse, Wechsel oben in der Seitenleiste
 - Empfang per IMAP, Versand per SMTP (Port 993/465 = SSL/TLS, sonst STARTTLS)
-- Posteingang mit Ungelesen / Gelesen / Alle, dazu Spam und Papierkorb
-- Automatischer Abruf, solange die App offen ist (Intervall in den Einstellungen)
+- Posteingang mit Ungelesen / Gelesen / Alle, dazu Favoriten, Spam, Papierkorb und alle weiteren Serverordner
+- Mehrfachauswahl, "Alle löschen" (Favoriten bleiben), "Alle als gelesen markieren", Suche
+- Antworten, Allen antworten, Weiterleiten, Anhänge senden und öffnen, Kopie in "Gesendet"
+- Automatischer Abruf bei geöffneter App, im Hintergrund durch iOS mit Mitteilungen
 - E-Mails werden als Text angezeigt, HTML und Bilder erst nach Umschalten
-- Passwörter im Schlüsselbund, E-Mails pro Konto getrennt zwischengespeichert
+- Passwörter im Schlüsselbund (AutoFill aus Passwortmanagern), E-Mails pro Konto getrennt
 
 ## Server
 

@@ -12,6 +12,8 @@ struct Account: Codable, Identifiable, Hashable {
     var smtpPort = 465
     var spam: String?
     var trash: String?
+    var sent: String?
+    var folders: [String]?
 
     var title: String {
         name.isEmpty ? email : name
@@ -21,65 +23,121 @@ struct Account: Codable, Identifiable, Hashable {
         user.isEmpty ? email : user
     }
 
-    func folder(_ box: Box) -> String? {
-        switch box {
-        case .inbox: "INBOX"
-        case .spam: spam
-        case .trash: trash
+    var otherFolders: [String] {
+        (folders ?? []).filter { $0.uppercased() != "INBOX" && $0 != spam && $0 != trash }
+    }
+
+    var syncedFolders: [String] {
+        ["INBOX"] + otherFolders + [spam, trash].compactMap { $0 }
+    }
+
+    func title(_ filter: Filter) -> String {
+        switch filter {
+        case .unread: "Ungelesen"
+        case .read: "Gelesen"
+        case .all: "Alle"
+        case .favorites: "Favoriten"
+        case .folder(let name):
+            name == spam ? "Spam" : name == trash ? "Papierkorb" : name == sent ? "Gesendet" : folderName(name)
         }
     }
-}
 
-enum Box: String, Codable, CaseIterable {
-    case inbox, spam, trash
+    func icon(_ filter: Filter) -> String {
+        switch filter {
+        case .unread: return "envelope.badge"
+        case .read: return "envelope.open"
+        case .all: return "tray.full"
+        case .favorites: return "star"
+        case .folder(let name):
+            let lower = folderName(name).lowercased()
+            if name == spam { return "xmark.bin" }
+            if name == trash { return "trash" }
+            if name == sent { return "paperplane" }
+            if lower.contains("entw") || lower.contains("draft") { return "doc" }
+            if lower.contains("archiv") { return "archivebox" }
+            return "folder"
+        }
+    }
 }
 
 struct Mail: Codable, Identifiable, Hashable {
     let uid: Int
-    let box: Box
+    let folder: String
     var from: String
     var to: String
+    var cc: String
     var subject: String
     var date: Date
     var seen: Bool
+    var flagged: Bool
+    var messageID: String
 
     var id: String {
-        box.rawValue + "-" + String(uid)
+        folder + "/" + String(uid)
+    }
+
+    var inbox: Bool {
+        folder.uppercased() == "INBOX"
     }
 }
 
 enum Filter: Hashable {
-    case unread, read, all, spam, trash
+    case unread, read, all, favorites
+    case folder(String)
 
-    var title: String {
+    func matches(_ mail: Mail, trash: String?) -> Bool {
         switch self {
-        case .unread: "Ungelesen"
-        case .read: "Gelesen"
-        case .all: "Alle"
-        case .spam: "Spam"
-        case .trash: "Papierkorb"
+        case .unread: mail.inbox && !mail.seen
+        case .read: mail.inbox && mail.seen
+        case .all: mail.inbox
+        case .favorites: mail.flagged && mail.folder != trash
+        case .folder(let name): mail.folder == name
         }
     }
+}
 
-    var icon: String {
-        switch self {
-        case .unread: "envelope.badge"
-        case .read: "envelope.open"
-        case .all: "tray.full"
-        case .spam: "xmark.bin"
-        case .trash: "trash"
-        }
-    }
+struct Attachment: Identifiable {
+    let id = UUID()
+    let name: String
+    let type: String
+    let data: Data
+}
 
-    func matches(_ mail: Mail) -> Bool {
-        switch self {
-        case .unread: mail.box == .inbox && !mail.seen
-        case .read: mail.box == .inbox && mail.seen
-        case .all: mail.box == .inbox
-        case .spam: mail.box == .spam
-        case .trash: mail.box == .trash
+struct Draft: Identifiable {
+    let id = UUID()
+    var to = ""
+    var cc = ""
+    var subject = ""
+    var body = ""
+    var attachments: [Attachment] = []
+    var reply = ""
+}
+
+func folderName(_ name: String) -> String {
+    let last = name.split(whereSeparator: { $0 == "/" || $0 == "." }).last.map(String.init) ?? name
+    var result = ""
+    var rest = Substring(last)
+    while let amp = rest.firstIndex(of: "&") {
+        result += rest[..<amp]
+        let after = rest[rest.index(after: amp)...]
+        guard let dash = after.firstIndex(of: "-") else {
+            return result + after
         }
+        let chunk = after[..<dash]
+        if chunk.isEmpty {
+            result += "&"
+        } else {
+            var encoded = chunk.replacingOccurrences(of: ",", with: "/")
+            while encoded.count % 4 != 0 {
+                encoded += "="
+            }
+            if let data = Data(base64Encoded: encoded), let text = String(data: data, encoding: .utf16BigEndian) {
+                result += text
+            }
+        }
+        rest = after[after.index(after: dash)...]
     }
+    return result + rest
 }
 
 func savePassword(_ password: String, for id: UUID) {

@@ -8,7 +8,7 @@ let defaultAccent = Color(UIColor { traits in
         : UIColor(red: 0.85, green: 0.40, blue: 0.13, alpha: 1)
 })
 
-func accentColor(_ hex: String) -> Color {
+func themeColor(_ hex: String) -> Color {
     let clean = hex.trimmingCharacters(in: CharacterSet(charactersIn: "# "))
     guard clean.count == 6, let value = Int(clean, radix: 16) else { return defaultAccent }
     return Color(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)
@@ -35,7 +35,7 @@ struct LaufburscheApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .tint(accentColor(accent))
+                .tint(themeColor(accent))
                 .preferredColorScheme(theme == 1 ? .light : theme == 2 ? .dark : nil)
         }
         .backgroundTask(.appRefresh(refreshTask)) {

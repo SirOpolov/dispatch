@@ -241,7 +241,7 @@ struct MessageList: View {
                         } label: {
                             Label(mail.seen ? "Ungelesen" : "Gelesen", systemImage: mail.seen ? "envelope.badge" : "envelope.open")
                         }
-                        .tint(accentColor(accent))
+                        .tint(themeColor(accent))
                         Button {
                             Task {
                                 await store.setFlagged([mail], !mail.flagged)

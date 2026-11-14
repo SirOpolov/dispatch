@@ -19,7 +19,7 @@ struct SettingsView: View {
                         Text("Dunkel").tag(2)
                     }
                     .pickerStyle(.segmented)
-                    ColorPicker("Akzentfarbe", selection: Binding(get: { accentColor(accent) }, set: { accent = hexString($0) }), supportsOpacity: false)
+                    ColorPicker("Akzentfarbe", selection: Binding(get: { themeColor(accent) }, set: { accent = hexString($0) }), supportsOpacity: false)
                     HStack {
                         TextField("#RRGGBB", text: $accent)
                             .textInputAutocapitalization(.characters)

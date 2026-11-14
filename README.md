@@ -11,6 +11,7 @@ Schlanker Mail-Client für iOS 26 (SwiftUI, Liquid Glass), ohne Fremdbibliotheke
 - E-Mails werden als Text angezeigt, HTML und Bilder erst nach Umschalten
 - Profil „Alle Konten“ mit gemeinsamem Ordner und kontoübergreifender Suche
 - Vertrauenswürdige Absender (Gruppe „Verifiziert“, HTML direkt an) und Spam-Absender (automatisch in Spam), per Gedrückthalten oder in den Einstellungen
+- Absender-Icons direkt von der Absender-Domain, sonst Buchstaben-Platzhalter; eigene Icons für vertrauenswürdige Absender
 - Akzentfarbe frei wählbar
 - Passwörter im Schlüsselbund (AutoFill aus Passwortmanagern), E-Mails pro Konto getrennt
 

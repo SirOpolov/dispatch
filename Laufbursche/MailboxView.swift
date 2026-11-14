@@ -421,11 +421,19 @@ struct MailRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Circle()
-                .fill(.tint)
-                .opacity(mail.seen ? 0 : 1)
-                .frame(width: 9, height: 9)
-                .padding(.top, 6)
+            Avatar(from: mail.from)
+                .overlay(alignment: .topLeading) {
+                    if !mail.seen {
+                        Circle()
+                            .fill(.tint)
+                            .frame(width: 12, height: 12)
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(Color(uiColor: .systemBackground), lineWidth: 2)
+                            }
+                            .offset(x: -3, y: -3)
+                    }
+                }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(senderName(mail.from))

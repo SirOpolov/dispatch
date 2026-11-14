@@ -27,6 +27,7 @@ func hexString(_ color: Color) -> String {
 @main
 struct LaufburscheApp: App {
     @State private var store = Store()
+    @State private var icons = Icons()
     @AppStorage("theme") private var theme = 0
     @AppStorage("accent") private var accent = ""
 
@@ -35,6 +36,7 @@ struct LaufburscheApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
+                .environment(icons)
                 .tint(themeColor(accent))
                 .preferredColorScheme(theme == 1 ? .light : theme == 2 ? .dark : nil)
         }

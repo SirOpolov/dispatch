@@ -95,6 +95,12 @@ final class MailTests: XCTestCase {
         XCTAssertFalse(matches("", "max@web.de"))
     }
 
+    func testSenderDomain() {
+        XCTAssertEqual(senderDomain("News <news@mail.shop.example.com>"), "example.com")
+        XCTAssertEqual(senderDomain("a@service.bbc.co.uk"), "bbc.co.uk")
+        XCTAssertEqual(senderDomain("max@web.de"), "web.de")
+    }
+
     func testSearch() {
         var parser = Parser(Data("* SEARCH 3 5 8\r\n".utf8))
         let numbers = parser.responses()[0].dropFirst(2).compactMap { Int($0.string) }

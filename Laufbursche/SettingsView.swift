@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @Environment(Store.self) private var store
@@ -6,7 +8,10 @@ struct SettingsView: View {
     @AppStorage("theme") private var theme = 0
     @AppStorage("interval") private var interval = 60
     @AppStorage("accent") private var accent = ""
+    @AppStorage("icons") private var loadIcons = true
+    @Environment(Icons.self) private var icons
     @State private var adding = false
+    private let swatches = ["", "#007AFF", "#5856D6", "#AF52DE", "#FF2D55", "#FF3B30", "#34C759", "#30B0C7"]
     @State private var confirmClear = false
 
     var body: some View {
@@ -19,19 +24,45 @@ struct SettingsView: View {
                         Text("Dunkel").tag(2)
                     }
                     .pickerStyle(.segmented)
-                    ColorPicker("Akzentfarbe", selection: Binding(get: { themeColor(accent) }, set: { accent = hexString($0) }), supportsOpacity: false)
+                }
+                Section {
+                    HStack(spacing: 10) {
+                        ForEach(swatches, id: \.self) { hex in
+                            Button {
+                                accent = hex
+                                store.confirm("Akzentfarbe geändert")
+                            } label: {
+                                Circle()
+                                    .fill(hex.isEmpty ? defaultAccent : themeColor(hex))
+                                    .frame(width: 28, height: 28)
+                                    .overlay {
+                                        if accent == hex {
+                                            Image(systemName: "checkmark")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    ColorPicker("Eigene Farbe", selection: Binding(get: { themeColor(accent) }, set: { accent = hexString($0) }), supportsOpacity: false)
                     HStack {
+                        Text("Hex")
                         TextField("#RRGGBB", text: $accent)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                             .font(.body.monospaced())
-                        if !accent.isEmpty {
-                            Button("Standard") {
-                                accent = ""
-                                store.confirm("Standardfarbe wiederhergestellt")
-                            }
+                            .multilineTextAlignment(.trailing)
+                    }
+                    if !accent.isEmpty {
+                        Button("Standardfarbe wiederherstellen") {
+                            accent = ""
+                            store.confirm("Standardfarbe wiederhergestellt")
                         }
                     }
+                } header: {
+                    Text("Akzentfarbe")
                 }
                 Section {
                     NavigationLink {
@@ -108,6 +139,11 @@ struct SettingsView: View {
                     LabeledContent("Papierkorb-Ordner", value: store.current?.trash ?? "–")
                     LabeledContent("Gesendet-Ordner", value: store.current?.sent ?? "–")
                     LabeledContent("Ordner gesamt", value: String(store.current?.folders?.count ?? 0))
+                    Toggle("Absender-Icons laden", isOn: $loadIcons)
+                    Button("Icon-Cache leeren") {
+                        icons.clearCache()
+                        store.confirm("Icon-Cache geleert")
+                    }
                     Button("Ordner neu suchen") {
                         store.rediscover()
                     }
@@ -159,6 +195,7 @@ struct SettingsView: View {
 
 struct RuleList: View {
     @Environment(Store.self) private var store
+    @Environment(Icons.self) private var icons
     let spam: Bool
     @State private var entry = ""
 
@@ -179,9 +216,17 @@ struct RuleList: View {
             }
             Section {
                 ForEach(rules, id: \.self) { rule in
-                    Label(rule, systemImage: spam ? "xmark.bin" : "checkmark.seal")
+                    if spam {
+                        Label(rule, systemImage: "xmark.bin")
+                    } else {
+                        RuleRow(rule: rule)
+                    }
                 }
                 .onDelete(perform: remove)
+            } footer: {
+                if !spam && !rules.isEmpty {
+                    Text("Tippe auf ein Bild, um ein eigenes Icon festzulegen. Es ersetzt das automatisch geladene.")
+                }
             }
         }
         .overlay(alignment: .bottom) {
@@ -211,8 +256,64 @@ struct RuleList: View {
         if spam {
             store.blocked.remove(atOffsets: offsets)
         } else {
+            for rule in offsets.map({ store.trusted[$0] }) {
+                icons.setCustom(nil, for: rule)
+            }
             store.trusted.remove(atOffsets: offsets)
         }
         store.confirm("Entfernt")
+    }
+}
+
+struct RuleRow: View {
+    @Environment(Store.self) private var store
+    @Environment(Icons.self) private var icons
+    let rule: String
+    @State private var item: PhotosPickerItem?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PhotosPicker(selection: $item, matching: .images) {
+                RuleIcon(rule: rule)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "camera.circle.fill")
+                            .font(.caption)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .tint)
+                            .offset(x: 3, y: 3)
+                    }
+            }
+            .buttonStyle(.borderless)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(rule)
+                Text(icons.custom[rule] == nil ? "Automatisches Icon" : "Eigenes Icon")
+                    .font(.caption)
+                    .foregroundStyle(Color.secondary)
+            }
+            Spacer()
+            if icons.custom[rule] != nil {
+                Button {
+                    icons.setCustom(nil, for: rule)
+                    store.confirm("Eigenes Icon entfernt")
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Color.secondary)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .onChange(of: item) {
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                    icons.setCustom(image, for: rule)
+                    store.confirm("Icon gespeichert")
+                } else {
+                    store.toast = "Bild konnte nicht geladen werden"
+                    store.failed += 1
+                }
+                self.item = nil
+            }
+        }
     }
 }

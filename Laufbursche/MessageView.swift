@@ -90,7 +90,8 @@ struct MessageView: View {
             Text(mail.subject.isEmpty ? "(Kein Betreff)" : mail.subject)
                 .font(.title3.bold())
                 .textSelection(.enabled)
-            HStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Avatar(from: mail.from, size: 44)
                 Text(mail.from)
                     .font(.subheadline.weight(.medium))
                 if store.isTrusted(mail) {

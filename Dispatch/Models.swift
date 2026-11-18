@@ -162,7 +162,7 @@ func savePassword(_ password: String, for id: UUID) {
     deletePassword(for: id)
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "laufbursche",
+        kSecAttrService as String: "dispatch",
         kSecAttrAccount as String: id.uuidString,
         kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
         kSecValueData as String: Data(password.utf8),
@@ -173,7 +173,7 @@ func savePassword(_ password: String, for id: UUID) {
 func loadPassword(for id: UUID) -> String {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "laufbursche",
+        kSecAttrService as String: "dispatch",
         kSecAttrAccount as String: id.uuidString,
         kSecReturnData as String: true,
         kSecMatchLimit as String: kSecMatchLimitOne,
@@ -186,7 +186,7 @@ func loadPassword(for id: UUID) -> String {
 func deletePassword(for id: UUID) {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "laufbursche",
+        kSecAttrService as String: "dispatch",
         kSecAttrAccount as String: id.uuidString,
     ]
     SecItemDelete(query as CFDictionary)

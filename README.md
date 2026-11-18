@@ -1,4 +1,4 @@
-# laufbursche
+# dispatch
 
 Schlanker Mail-Client für iOS 26 (SwiftUI, Liquid Glass), ohne Fremdbibliotheken.
 
@@ -26,4 +26,4 @@ Bei WEB.DE muss IMAP im Webmail unter Einstellungen → POP3/IMAP freigeschaltet
 
 ## Build
 
-GitHub Actions erzeugt das Projekt mit XcodeGen, führt die Tests aus und baut eine unsignierte `Laufbursche.ipa`. Installation wie bei Nightshift.
+GitHub Actions erzeugt das Projekt mit XcodeGen, führt die Tests aus und baut eine unsignierte `Dispatch.ipa`. Installation wie bei Nightshift.

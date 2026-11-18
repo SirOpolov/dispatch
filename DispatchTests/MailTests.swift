@@ -1,5 +1,5 @@
 import XCTest
-@testable import Laufbursche
+@testable import Dispatch
 
 final class MailTests: XCTestCase {
     func testEncodedWords() {

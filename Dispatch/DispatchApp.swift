@@ -25,7 +25,7 @@ func hexString(_ color: Color) -> String {
 }
 
 @main
-struct LaufburscheApp: App {
+struct DispatchApp: App {
     @State private var store = Store()
     @State private var icons = Icons()
     @AppStorage("theme") private var theme = 0
@@ -97,7 +97,7 @@ struct RootView: View {
             Image(systemName: "envelope.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.tint)
-            Text("Laufbursche")
+            Text(verbatim: "Dispatch")
                 .font(.largeTitle.bold())
             Button {
                 adding = true

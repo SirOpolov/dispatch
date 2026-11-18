@@ -90,7 +90,7 @@ func message(account: Account, draft: Draft) -> Data {
     if draft.attachments.isEmpty {
         lines += text
     } else {
-        let boundary = "laufbursche-" + UUID().uuidString
+        let boundary = "dispatch-" + UUID().uuidString
         lines += ["Content-Type: multipart/mixed; boundary=\"" + boundary + "\"", "", "--" + boundary] + text
         for attachment in draft.attachments {
             let name = encodeWord(attachment.name.replacingOccurrences(of: "\"", with: "'"))

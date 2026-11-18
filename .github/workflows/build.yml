@@ -17,15 +17,15 @@ jobs:
       - name: Tests
         run: |
           xcrun simctl list devices available
-          xcodebuild test -scheme Laufbursche -destination 'platform=iOS Simulator,name=iPhone 17'
+          xcodebuild test -scheme Dispatch -destination 'platform=iOS Simulator,name=iPhone 17'
       - name: Build
-        run: xcodebuild build -scheme Laufbursche -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+        run: xcodebuild build -scheme Dispatch -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO
       - name: IPA packen
         run: |
           mkdir Payload
-          cp -R build/Build/Products/Release-iphoneos/Laufbursche.app Payload/
-          zip -r Laufbursche.ipa Payload
+          cp -R build/Build/Products/Release-iphoneos/Dispatch.app Payload/
+          zip -r Dispatch.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
-          name: Laufbursche
-          path: Laufbursche.ipa
+          name: Dispatch
+          path: Dispatch.ipa

@@ -3,7 +3,7 @@ import Foundation
 import Observation
 import UserNotifications
 
-let refreshTask = "de.greismicha.laufbursche.refresh"
+let refreshTask = "de.siropolov.dispatch.refresh"
 
 func scheduleRefresh() {
     let request = BGAppRefreshTaskRequest(identifier: refreshTask)

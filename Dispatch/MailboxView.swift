@@ -18,7 +18,7 @@ struct MailboxView: View {
                     home()
                 }
             } else {
-                ContentUnavailableView("Ordner wählen", systemImage: "tray")
+                ContentUnavailableView("Choose a Folder", systemImage: "tray")
             }
         } detail: {
             if let selected, let mail = store.mails.first(where: { $0.id == selected }) {
@@ -26,7 +26,7 @@ struct MailboxView: View {
                     self.selected = nil
                 }
             } else {
-                ContentUnavailableView("Keine E-Mail gewählt", systemImage: "envelope")
+                ContentUnavailableView("No Email Selected", systemImage: "envelope")
             }
         }
         .sheet(isPresented: $composing) {
@@ -60,19 +60,19 @@ struct MailboxView: View {
                 Button {
                     composing = true
                 } label: {
-                    Label("E-Mail schreiben", systemImage: "square.and.pencil")
+                    Label("Compose", systemImage: "square.and.pencil")
                         .font(.headline)
                 }
             }
             if store.unified {
-                Section("Alle Konten") {
+                Section("Unified Inbox") {
                     row(.shared)
                     row(.unread)
                     row(.favorites)
                     row(.verified)
                 }
             } else {
-                Section("Posteingang") {
+                Section("Inbox") {
                     row(.unread)
                     row(.read)
                     row(.all)
@@ -88,7 +88,7 @@ struct MailboxView: View {
                     }
                 }
                 if let folders = store.current?.otherFolders, !folders.isEmpty {
-                    Section("Ordner") {
+                    Section("Folders") {
                         ForEach(folders, id: \.self) { folder in
                             row(.folder(folder))
                         }
@@ -103,7 +103,7 @@ struct MailboxView: View {
                 }
             }
         }
-        .navigationTitle("Postfach")
+        .navigationTitle("Mailbox")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if store.syncing {
@@ -130,9 +130,9 @@ struct MailboxView: View {
                     store.select(nil)
                 } label: {
                     if store.unified {
-                        Label("Alle Konten", systemImage: "checkmark")
+                        Label("Unified Inbox", systemImage: "checkmark")
                     } else {
-                        Label("Alle Konten", systemImage: "person.2")
+                        Label("Unified Inbox", systemImage: "person.2")
                     }
                 }
                 Divider()
@@ -152,7 +152,7 @@ struct MailboxView: View {
             Button {
                 adding = true
             } label: {
-                Label("Konto hinzufügen", systemImage: "plus")
+                Label("Add Account", systemImage: "plus")
             }
         } label: {
             HStack(spacing: 12) {
@@ -169,7 +169,7 @@ struct MailboxView: View {
                 .frame(width: 38, height: 38)
                 .background(.tint, in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(store.unified ? "Alle Konten" : store.current?.title ?? "")
+                    Text(store.unified ? String(localized: "Unified Inbox") : store.current?.title ?? "")
                         .font(.headline)
                         .foregroundStyle(Color.primary)
                     Text(store.unified ? store.accounts.map(\.email).joined(separator: ", ") : store.current?.email ?? "")
@@ -230,7 +230,7 @@ struct MessageList: View {
                                 await store.delete([mail])
                             }
                         } label: {
-                            Label("Löschen", systemImage: "trash")
+                            Label("Delete", systemImage: "trash")
                         }
                     }
                     .swipeActions(edge: .leading) {
@@ -239,7 +239,7 @@ struct MessageList: View {
                                 await store.setSeen([mail], !mail.seen)
                             }
                         } label: {
-                            Label(mail.seen ? "Ungelesen" : "Gelesen", systemImage: mail.seen ? "envelope.badge" : "envelope.open")
+                            Label(mail.seen ? LocalizedStringKey("Unread") : "Read", systemImage: mail.seen ? "envelope.badge" : "envelope.open")
                         }
                         .tint(themeColor(accent))
                         Button {
@@ -247,7 +247,7 @@ struct MessageList: View {
                                 await store.setFlagged([mail], !mail.flagged)
                             }
                         } label: {
-                            Label(mail.flagged ? "Kein Favorit" : "Favorit", systemImage: mail.flagged ? "star.slash" : "star")
+                            Label(mail.flagged ? LocalizedStringKey("Unfavorite") : "Favorite", systemImage: mail.flagged ? "star.slash" : "star")
                         }
                         .tint(.yellow)
                     }
@@ -256,7 +256,7 @@ struct MessageList: View {
         }
         .overlay {
             if mails.isEmpty {
-                ContentUnavailableView(query.isEmpty ? "Keine E-Mails" : "Keine Treffer", systemImage: store.current?.icon(filter) ?? "tray")
+                ContentUnavailableView(query.isEmpty ? LocalizedStringKey("No Emails") : "No Results", systemImage: store.current?.icon(filter) ?? "tray")
             }
         }
         .navigationTitle(store.current?.title(filter) ?? "")
@@ -274,7 +274,7 @@ struct MessageList: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if editing {
-                    Button("Fertig") {
+                    Button("Done") {
                         editing = false
                         marked = []
                     }
@@ -283,21 +283,21 @@ struct MessageList: View {
                         Button {
                             editing = true
                         } label: {
-                            Label("Auswählen", systemImage: "checkmark.circle")
+                            Label("Select", systemImage: "checkmark.circle")
                         }
                         Button {
                             Task {
                                 await store.setSeen(mails.filter { !$0.seen }, true)
                             }
                         } label: {
-                            Label("Alle als gelesen markieren", systemImage: "envelope.open")
+                            Label("Mark All as Read", systemImage: "envelope.open")
                         }
                         .disabled(!mails.contains { !$0.seen })
                         if filter != .favorites {
                             Button(role: .destructive) {
                                 confirmAll = true
                             } label: {
-                                Label("Alle löschen", systemImage: "trash")
+                                Label("Delete All", systemImage: "trash")
                             }
                             .disabled(!mails.contains { !$0.flagged })
                         }
@@ -308,7 +308,7 @@ struct MessageList: View {
             }
             if editing {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    Button(chosen.count == mails.count && !mails.isEmpty ? "Keine" : "Alle") {
+                    Button(chosen.count == mails.count && !mails.isEmpty ? LocalizedStringKey("None") : "All") {
                         marked = chosen.count == mails.count ? [] : Set(mails.map(\.id))
                     }
                     Spacer()
@@ -333,14 +333,14 @@ struct MessageList: View {
                 }
             }
         }
-        .confirmationDialog(mailCount(mails.filter { !$0.flagged }.count) + " löschen?", isPresented: $confirmAll, titleVisibility: .visible) {
-            Button("Löschen", role: .destructive) {
+        .confirmationDialog(String(localized: "Delete \(mailCount(mails.filter { !$0.flagged }.count))?"), isPresented: $confirmAll, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
                 Task {
                     await store.delete(mails.filter { !$0.flagged })
                 }
             }
         } message: {
-            Text("Favoriten bleiben erhalten. Im Papierkorb wird endgültig gelöscht.")
+            Text("Favorites are kept. Emails in the trash are deleted permanently.")
         }
         .onChange(of: filter) {
             editing = false
@@ -367,26 +367,26 @@ struct MessageList: View {
             Button {
                 store.trust(sender)
             } label: {
-                Label("Absender vertrauen", systemImage: "checkmark.seal")
+                Label("Trust Sender", systemImage: "checkmark.seal")
             }
             Button {
                 store.trust(domain)
             } label: {
-                Label("Domain vertrauen (" + domain + ")", systemImage: "checkmark.seal.fill")
+                Label("Trust Domain (\(domain))", systemImage: "checkmark.seal.fill")
             }
             Button(role: .destructive) {
                 Task {
                     await store.block(sender)
                 }
             } label: {
-                Label("Absender ist Spam", systemImage: "xmark.bin")
+                Label("Sender Is Spam", systemImage: "xmark.bin")
             }
             Button(role: .destructive) {
                 Task {
                     await store.block(domain)
                 }
             } label: {
-                Label("Domain ist Spam (" + domain + ")", systemImage: "xmark.bin.fill")
+                Label("Domain Is Spam (\(domain))", systemImage: "xmark.bin.fill")
             }
         }
     }
@@ -407,7 +407,7 @@ struct Search: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if enabled {
-            content.searchable(text: $query, prompt: "In allen Konten suchen")
+            content.searchable(text: $query, prompt: "Search All Accounts")
         } else {
             content
         }
@@ -454,7 +454,7 @@ struct MailRow: View {
                         .font(.caption)
                         .foregroundStyle(Color.secondary)
                 }
-                Text(mail.subject.isEmpty ? "(Kein Betreff)" : mail.subject)
+                Text(mail.subject.isEmpty ? String(localized: "(No Subject)") : mail.subject)
                     .font(.subheadline)
                     .foregroundStyle(mail.seen ? Color.secondary : Color.primary)
                     .lineLimit(2)

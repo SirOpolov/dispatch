@@ -317,7 +317,7 @@ class IMAP {
     func body(_ uid: Int) async throws -> Data {
         let response = try await command("UID FETCH " + String(uid) + " (UID BODY.PEEK[])")
         guard let body = fetches(response).compactMap({ $0["BODY"] }).first else {
-            throw MailError("E-Mail nicht gefunden")
+            throw MailError(String(localized: "Email not found"))
         }
         return body.data
     }

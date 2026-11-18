@@ -31,6 +31,10 @@ struct DispatchApp: App {
     @AppStorage("theme") private var theme = 0
     @AppStorage("accent") private var accent = ""
 
+    init() {
+        UserDefaults.standard.set([UserDefaults.standard.string(forKey: "language") ?? "en"], forKey: "AppleLanguages")
+    }
+
     var body: some Scene {
         let model = store
         WindowGroup {
@@ -102,7 +106,7 @@ struct RootView: View {
             Button {
                 adding = true
             } label: {
-                Label("Konto hinzufügen", systemImage: "plus")
+                Label("Add Account", systemImage: "plus")
                     .font(.headline)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)

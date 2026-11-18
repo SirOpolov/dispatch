@@ -12,7 +12,7 @@ func scheduleRefresh() {
 }
 
 func mailCount(_ count: Int) -> String {
-    count == 1 ? "1 E-Mail" : String(count) + " E-Mails"
+    count == 1 ? String(localized: "1 email") : String(localized: "\(count) emails")
 }
 
 @MainActor
@@ -109,10 +109,10 @@ class Store {
         if let account {
             currentID = account.id
             unified = false
-            confirm("Gewechselt zu " + account.title)
+            confirm(String(localized: "Switched to \(account.title)"))
         } else {
             unified = true
-            confirm("Alle Konten")
+            confirm(String(localized: "Unified Inbox"))
         }
     }
 
@@ -148,8 +148,8 @@ class Store {
         saveAccounts()
         unified = false
         currentID = account.id
-        note("Konto gespeichert: " + account.email)
-        confirm("Verbunden mit " + account.email)
+        note("Account saved: " + account.email)
+        confirm(String(localized: "Connected to \(account.email)"))
     }
 
     func remove(_ account: Account) {
@@ -161,8 +161,8 @@ class Store {
             unified = false
         }
         currentID = accounts.first?.id
-        note("Konto entfernt: " + account.email)
-        confirm("Konto entfernt")
+        note("Account removed: " + account.email)
+        confirm(String(localized: "Account removed"))
     }
 
     func trust(_ rule: String) {
@@ -170,7 +170,7 @@ class Store {
         guard !clean.isEmpty, !trusted.contains(clean) else { return }
         trusted.append(clean)
         blocked.removeAll { $0 == clean }
-        confirm(clean + " ist vertrauenswürdig")
+        confirm(String(localized: "\(clean) is trusted"))
     }
 
     func block(_ rule: String) async {
@@ -180,9 +180,9 @@ class Store {
         trusted.removeAll { $0 == clean }
         let junk = mails.filter { $0.inbox && matches(clean, $0.from) }
         if junk.isEmpty {
-            confirm(clean + " gilt als Spam")
+            confirm(String(localized: "\(clean) is marked as spam"))
         } else {
-            await move(junk, to: .spam, mailCount(junk.count) + " von " + clean + " in Spam verschoben")
+            await move(junk, to: .spam, String(localized: "\(mailCount(junk.count)) from \(clean) moved to spam"))
         }
     }
 
@@ -197,10 +197,10 @@ class Store {
             do {
                 let fresh = try await download(account)
                 count += fresh.count
-                note(account.email + ": " + String(fresh.count) + " neu")
+                note(account.email + ": " + String(fresh.count) + " new")
             } catch {
                 problem = account.email + ": " + error.localizedDescription
-                note("Fehler " + (problem ?? ""))
+                note("Error " + (problem ?? ""))
             }
         }
         error = problem
@@ -212,7 +212,7 @@ class Store {
     func refresh() async {
         let count = await sync()
         if error == nil {
-            confirm(count == 0 ? "Keine neuen E-Mails" : mailCount(count) + " neu")
+            confirm(count == 0 ? String(localized: "No new emails") : String(localized: "\(mailCount(count)) new"))
         } else {
             toast = error
             failed += 1
@@ -262,18 +262,18 @@ class Store {
 
     func setSeen(_ list: [Mail], _ seen: Bool) async {
         if await mark(list, "\\Seen", seen, { $0.seen = seen }) {
-            confirm(seen ? "Als gelesen markiert" : "Als ungelesen markiert")
+            confirm(seen ? String(localized: "Marked as read") : String(localized: "Marked as unread"))
         }
     }
 
     func setFlagged(_ list: [Mail], _ flagged: Bool) async {
         if await mark(list, "\\Flagged", flagged, { $0.flagged = flagged }) {
-            confirm(flagged ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt")
+            confirm(flagged ? String(localized: "Added to favorites") : String(localized: "Removed from favorites"))
         }
     }
 
     func delete(_ list: [Mail]) async {
-        await move(list, to: .trash, mailCount(list.count) + " gelöscht")
+        await move(list, to: .trash, String(localized: "\(mailCount(list.count)) deleted"))
     }
 
     func move(_ list: [Mail], to destination: Destination, _ text: String) async {
@@ -314,23 +314,23 @@ class Store {
         guard let account = accounts.first(where: { $0.id == draft.account }) ?? current else { return }
         let recipients = addresses(draft.to) + addresses(draft.cc)
         guard !recipients.isEmpty else {
-            throw MailError("Kein gültiger Empfänger angegeben")
+            throw MailError(String(localized: "No valid recipient given"))
         }
         let data = message(account: account, draft: draft)
         let smtp = try await SMTP(account: account, password: loadPassword(for: account.id))
         defer { smtp.close() }
         try await smtp.deliver(from: account.email, to: recipients, message: data)
-        note("Gesendet an " + recipients.joined(separator: ", "))
+        note("Sent to " + recipients.joined(separator: ", "))
         if let sent = account.sent {
             do {
                 try await withIMAP(account) { imap in
                     try await imap.append(data, to: sent)
                 }
             } catch {
-                note("Ablage in Gesendet fehlgeschlagen: " + error.localizedDescription)
+                note("Saving to sent folder failed: " + error.localizedDescription)
             }
         }
-        confirm("Gesendet von " + account.email)
+        confirm(String(localized: "Sent from \(account.email)"))
     }
 
     func clearCache() {
@@ -338,8 +338,8 @@ class Store {
             try? FileManager.default.removeItem(at: directory(account.id))
         }
         mails = []
-        note("Cache geleert")
-        confirm("Cache geleert")
+        note("Cache cleared")
+        confirm(String(localized: "Cache cleared"))
     }
 
     func rediscover() {
@@ -347,7 +347,7 @@ class Store {
             account.folders = nil
             updateAccount(account)
         }
-        confirm("Ordner werden neu gesucht")
+        confirm(String(localized: "Rediscovering folders"))
         Task {
             await sync()
         }
@@ -404,7 +404,7 @@ class Store {
                     let ids = Set(junk.map(\.id))
                     all.removeAll { ids.contains($0.id) }
                     fresh.removeAll { ids.contains($0.id) }
-                    note(account.email + ": " + mailCount(junk.count) + " in Spam verschoben")
+                    note(account.email + ": " + String(junk.count) + " moved to spam")
                 }
             }
         }
@@ -415,7 +415,7 @@ class Store {
     private func announce(_ list: [Mail], _ account: Account) {
         guard !list.isEmpty else { return }
         let content = UNMutableNotificationContent()
-        content.title = list.count == 1 ? senderName(list[0].from) : mailCount(list.count) + " neu"
+        content.title = list.count == 1 ? senderName(list[0].from) : String(localized: "\(mailCount(list.count)) new")
         content.subtitle = account.title
         content.body = list.count == 1 ? list[0].subject : list.prefix(5).map { senderName($0.from) }.joined(separator: ", ")
         content.sound = .default
@@ -462,7 +462,7 @@ class Store {
         self.error = error.localizedDescription
         toast = error.localizedDescription
         failed += 1
-        note("Fehler: " + error.localizedDescription)
+        note("Error: " + error.localizedDescription)
     }
 
     private func note(_ text: String) {

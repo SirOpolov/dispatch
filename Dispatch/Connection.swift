@@ -68,7 +68,7 @@ class Connection {
             return
         }
         if end {
-            throw MailError("Verbindung vom Server getrennt")
+            throw MailError(String(localized: "Connection closed by server"))
         }
     }
 }

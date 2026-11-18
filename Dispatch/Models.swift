@@ -33,14 +33,14 @@ struct Account: Codable, Identifiable, Hashable {
 
     func title(_ filter: Filter) -> String {
         switch filter {
-        case .unread: "Ungelesen"
-        case .read: "Gelesen"
-        case .all: "Alle"
-        case .favorites: "Favoriten"
-        case .verified: "Verifiziert"
-        case .shared: "Alle E-Mails"
+        case .unread: String(localized: "Unread")
+        case .read: String(localized: "Read")
+        case .all: String(localized: "All")
+        case .favorites: String(localized: "Favorites")
+        case .verified: String(localized: "Verified")
+        case .shared: String(localized: "All Emails")
         case .folder(let name):
-            name == spam ? "Spam" : name == trash ? "Papierkorb" : name == sent ? "Gesendet" : folderName(name)
+            name == spam ? String(localized: "Spam") : name == trash ? String(localized: "Trash") : name == sent ? String(localized: "Sent") : folderName(name)
         }
     }
 

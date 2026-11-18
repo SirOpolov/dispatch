@@ -149,7 +149,7 @@ private func walk(_ data: Data, into content: inout MailContent) {
         content.images[id] = "data:" + type + ";base64," + decoded.base64EncodedString()
     }
     if disposition.lowercased().hasPrefix("attachment") || (filename != nil && id == nil) {
-        content.attachments.append(Attachment(name: decodeWords(filename ?? "Anhang"), type: type, data: decoded))
+        content.attachments.append(Attachment(name: decodeWords(filename ?? String(localized: "Attachment")), type: type, data: decoded))
         return
     }
     let charset = parameter(contentType, "charset")

@@ -16,25 +16,25 @@ struct AccountForm: View {
 
     var body: some View {
         Form {
-            Section("Konto") {
+            Section("Account") {
                 TextField("Name", text: $account.name)
-                TextField("E-Mail", text: $account.email)
+                TextField("Email", text: $account.email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textContentType(.username)
-                SecureField(editing ? "Passwort (unverändert)" : "Passwort", text: $password)
+                SecureField(editing ? LocalizedStringKey("Password (unchanged)") : "Password", text: $password)
                     .textContentType(.password)
             }
             Section {
                 presetButton("Strato", "imap.strato.de", 993, "smtp.strato.de", 465)
                 presetButton("WEB.DE", "imap.web.de", 993, "smtp.web.de", 587)
             } header: {
-                Text("Server vorbelegen")
+                Text("Fill In Servers")
             } footer: {
-                Text("Bei WEB.DE muss IMAP im Webmail unter Einstellungen → POP3/IMAP freigeschaltet sein.")
+                Text("With WEB.DE, IMAP must be enabled in the webmail under Settings → POP3/IMAP.")
             }
-            Section("Empfang (IMAP)") {
+            Section("Incoming (IMAP)") {
                 TextField("Server", text: $account.imapHost)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -47,20 +47,20 @@ struct AccountForm: View {
                     .autocorrectionDisabled()
                 TextField("Port", value: $account.smtpPort, format: .number.grouping(.never))
                     .keyboardType(.numberPad)
-                TextField("Benutzername (Standard: E-Mail)", text: $account.user)
+                TextField("Username (default: email)", text: $account.user)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } header: {
-                Text("Versand (SMTP)")
+                Text("Outgoing (SMTP)")
             } footer: {
-                Text("Port 993 und 465 nutzen SSL/TLS, alle anderen STARTTLS.")
+                Text("Ports 993 and 465 use SSL/TLS, all others STARTTLS.")
             }
             if let failure {
                 Section {
                     Label(failure, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
                 } footer: {
-                    Text("Wird die Anmeldung abgelehnt: IMAP-Zugriff beim Anbieter freischalten und bei Zwei-Faktor-Anmeldung ein App-Passwort verwenden.")
+                    Text("If the login is rejected: enable IMAP access at your provider and use an app password when two-factor authentication is on.")
                 }
             }
         }
@@ -68,12 +68,12 @@ struct AccountForm: View {
         .sensoryFeedback(.error, trigger: failure) { _, new in
             new != nil
         }
-        .navigationTitle(editing ? account.title : "Konto hinzufügen")
+        .navigationTitle(editing ? account.title : String(localized: "Add Account"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !editing {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen", role: .cancel) {
+                    Button("Cancel", role: .cancel) {
                         dismiss()
                     }
                 }
@@ -82,7 +82,7 @@ struct AccountForm: View {
                 if connecting {
                     ProgressView()
                 } else {
-                    Button("Verbinden") {
+                    Button("Connect") {
                         connect()
                     }
                     .disabled(account.email.isEmpty || account.imapHost.isEmpty || account.smtpHost.isEmpty || (password.isEmpty && !editing))
@@ -106,7 +106,7 @@ struct AccountForm: View {
                     .foregroundStyle(Color.primary)
                 Spacer()
                 if active {
-                    Label("Eingetragen", systemImage: "checkmark.circle.fill")
+                    Label("Filled In", systemImage: "checkmark.circle.fill")
                         .font(.subheadline)
                         .foregroundStyle(.tint)
                         .transition(.scale.combined(with: .opacity))

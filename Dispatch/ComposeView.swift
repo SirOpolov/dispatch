@@ -20,13 +20,13 @@ struct ComposeView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Von", selection: $draft.account) {
+                    Picker("From", selection: $draft.account) {
                         ForEach(store.accounts) { account in
                             Text(account.email)
                                 .tag(Optional(account.id))
                         }
                     }
-                    TextField("An", text: $draft.to)
+                    TextField("To", text: $draft.to)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -34,13 +34,13 @@ struct ComposeView: View {
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Betreff", text: $draft.subject)
+                    TextField("Subject", text: $draft.subject)
                 }
                 Section {
                     TextEditor(text: $draft.body)
                         .frame(minHeight: 280)
                 }
-                Section("Anhänge") {
+                Section("Attachments") {
                     ForEach(draft.attachments) { attachment in
                         HStack {
                             Label(attachment.name, systemImage: "paperclip")
@@ -57,18 +57,18 @@ struct ComposeView: View {
                     Button {
                         importing = true
                     } label: {
-                        Label("Datei anhängen", systemImage: "doc.badge.plus")
+                        Label("Attach File", systemImage: "doc.badge.plus")
                     }
                     PhotosPicker(selection: $photos, matching: .images) {
-                        Label("Foto anhängen", systemImage: "photo.badge.plus")
+                        Label("Attach Photo", systemImage: "photo.badge.plus")
                     }
                 }
             }
-            .navigationTitle(draft.subject.isEmpty ? "Neue E-Mail" : draft.subject)
+            .navigationTitle(draft.subject.isEmpty ? String(localized: "New Email") : draft.subject)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen", role: .cancel) {
+                    Button("Cancel", role: .cancel) {
                         dismiss()
                     }
                 }
@@ -110,7 +110,7 @@ struct ComposeView: View {
                 Task {
                     for item in items {
                         if let data = try? await item.loadTransferable(type: Data.self), let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.8) {
-                            draft.attachments.append(Attachment(name: "Foto-" + String(draft.attachments.count + 1) + ".jpg", type: "image/jpeg", data: jpeg))
+                            draft.attachments.append(Attachment(name: "Photo-" + String(draft.attachments.count + 1) + ".jpg", type: "image/jpeg", data: jpeg))
                         }
                     }
                 }
@@ -119,7 +119,7 @@ struct ComposeView: View {
             .sensoryFeedback(.error, trigger: failure) { _, new in
                 new != nil
             }
-            .alert("Senden fehlgeschlagen", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            .alert("Sending Failed", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
                 Button("OK") {}
             } message: {
                 Text(failure ?? "")

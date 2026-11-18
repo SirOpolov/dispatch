@@ -31,7 +31,7 @@ struct MessageView: View {
                 ProgressView()
                     .frame(maxHeight: .infinity)
             } else {
-                ContentUnavailableView("Laden fehlgeschlagen", systemImage: "exclamationmark.triangle", description: Text(store.error ?? ""))
+                ContentUnavailableView("Loading Failed", systemImage: "exclamationmark.triangle", description: Text(store.error ?? ""))
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -48,17 +48,17 @@ struct MessageView: View {
                     Button {
                         draft = reply(all: false)
                     } label: {
-                        Label("Antworten", systemImage: "arrowshape.turn.up.left")
+                        Label("Reply", systemImage: "arrowshape.turn.up.left")
                     }
                     Button {
                         draft = reply(all: true)
                     } label: {
-                        Label("Allen antworten", systemImage: "arrowshape.turn.up.left.2")
+                        Label("Reply All", systemImage: "arrowshape.turn.up.left.2")
                     }
                     Button {
                         draft = forward
                     } label: {
-                        Label("Weiterleiten", systemImage: "arrowshape.turn.up.right")
+                        Label("Forward", systemImage: "arrowshape.turn.up.right")
                     }
                 } label: {
                     Image(systemName: "arrowshape.turn.up.left")
@@ -87,7 +87,7 @@ struct MessageView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(mail.subject.isEmpty ? "(Kein Betreff)" : mail.subject)
+            Text(mail.subject.isEmpty ? String(localized: "(No Subject)") : mail.subject)
                 .font(.title3.bold())
                 .textSelection(.enabled)
             HStack(spacing: 10) {
@@ -100,11 +100,11 @@ struct MessageView: View {
                 }
             }
             if store.unified, let owner {
-                Text("Konto: " + owner.title)
+                Text("Account: \(owner.title)")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.tint)
             }
-            Text("An: " + mail.to + (mail.cc.isEmpty ? "" : "\nCc: " + mail.cc))
+            Text(String(localized: "To: \(mail.to)") + (mail.cc.isEmpty ? "" : "\nCc: " + mail.cc))
                 .font(.caption)
                 .foregroundStyle(Color.secondary)
                 .lineLimit(3)
@@ -130,7 +130,7 @@ struct MessageView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            Toggle("HTML und Bilder darstellen", isOn: $render)
+            Toggle("Show HTML and Images", isOn: $render)
                 .font(.subheadline)
                 .disabled(content == nil)
                 .padding(.top, 4)
@@ -147,23 +147,23 @@ struct MessageView: View {
                 await store.setSeen([mail], false)
             }
         } label: {
-            Label("Als ungelesen markieren", systemImage: "envelope.badge")
+            Label("Mark as Unread", systemImage: "envelope.badge")
         }
         if owner?.spam != nil && mail.inbox {
-            moveButton("Als Spam markieren", "xmark.bin", .spam, "In Spam verschoben")
+            moveButton("Mark as Spam", "xmark.bin", .spam, String(localized: "Moved to spam"))
         }
         if mail.folder == owner?.spam {
-            moveButton("Kein Spam", "tray.and.arrow.down", .inbox, "In den Posteingang verschoben")
+            moveButton("Not Spam", "tray.and.arrow.down", .inbox, String(localized: "Moved to inbox"))
         }
         if mail.folder == owner?.trash {
-            moveButton("Wiederherstellen", "tray.and.arrow.up", .inbox, "Wiederhergestellt")
+            moveButton("Restore", "tray.and.arrow.up", .inbox, String(localized: "Restored"))
         }
         Section(address(mail.from).lowercased()) {
             Button {
                 store.trust(address(mail.from))
                 render = true
             } label: {
-                Label("Absender vertrauen", systemImage: "checkmark.seal")
+                Label("Trust Sender", systemImage: "checkmark.seal")
             }
             .disabled(store.isTrusted(mail))
             Button(role: .destructive) {
@@ -172,7 +172,7 @@ struct MessageView: View {
                     await store.block(address(mail.from))
                 }
             } label: {
-                Label("Absender ist Spam", systemImage: "xmark.bin")
+                Label("Sender Is Spam", systemImage: "xmark.bin")
             }
         }
         Button(role: .destructive) {
@@ -181,7 +181,7 @@ struct MessageView: View {
                 await store.delete([mail])
             }
         } label: {
-            Label(mail.folder == owner?.trash ? "Endgültig löschen" : "Löschen", systemImage: "trash")
+            Label(mail.folder == owner?.trash ? LocalizedStringKey("Delete Permanently") : "Delete", systemImage: "trash")
         }
     }
 
@@ -189,7 +189,7 @@ struct MessageView: View {
         store.account(of: mail)
     }
 
-    private func moveButton(_ title: String, _ icon: String, _ target: Destination, _ text: String) -> some View {
+    private func moveButton(_ title: LocalizedStringKey, _ icon: String, _ target: Destination, _ text: String) -> some View {
         Button {
             close()
             Task {
@@ -208,7 +208,7 @@ struct MessageView: View {
             try attachment.data.write(to: file)
             preview = file
         } catch {
-            store.toast = "Anhang konnte nicht geöffnet werden"
+            store.toast = String(localized: "Attachment could not be opened")
             store.failed += 1
         }
     }
@@ -226,7 +226,7 @@ struct MessageView: View {
             to: address(mail.from),
             cc: all ? others.joined(separator: ", ") : "",
             subject: mail.subject.lowercased().hasPrefix("re:") ? mail.subject : "Re: " + mail.subject,
-            body: "\n\nAm " + mail.date.formatted(date: .numeric, time: .shortened) + " schrieb " + mail.from + ":\n" + quoted,
+            body: "\n\n" + String(localized: "On \(mail.date.formatted(date: .numeric, time: .shortened)), \(mail.from) wrote:") + "\n" + quoted,
             reply: mail.messageID
         )
     }
@@ -235,11 +235,11 @@ struct MessageView: View {
         let lines = [
             "",
             "",
-            "---------- Weitergeleitete Nachricht ----------",
-            "Von: " + mail.from,
-            "Datum: " + mail.date.formatted(date: .long, time: .shortened),
-            "Betreff: " + mail.subject,
-            "An: " + mail.to,
+            String(localized: "---------- Forwarded message ----------"),
+            String(localized: "From: \(mail.from)"),
+            String(localized: "Date: \(mail.date.formatted(date: .long, time: .shortened))"),
+            String(localized: "Subject: \(mail.subject)"),
+            String(localized: "To: \(mail.to)"),
             "",
             original,
         ]

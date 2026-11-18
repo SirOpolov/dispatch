@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("interval") private var interval = 60
     @AppStorage("accent") private var accent = ""
     @AppStorage("icons") private var loadIcons = true
+    @AppStorage("language") private var language = "en"
     @Environment(Icons.self) private var icons
     @State private var adding = false
     private let swatches = ["", "#007AFF", "#5856D6", "#AF52DE", "#FF2D55", "#FF3B30", "#34C759", "#30B0C7"]
@@ -17,20 +18,28 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Darstellung") {
-                    Picker("Erscheinungsbild", selection: $theme) {
+                Section("Appearance") {
+                    Picker("Theme", selection: $theme) {
                         Text("Auto").tag(0)
-                        Text("Hell").tag(1)
-                        Text("Dunkel").tag(2)
+                        Text("Light").tag(1)
+                        Text("Dark").tag(2)
                     }
                     .pickerStyle(.segmented)
+                }
+                Section {
+                    Picker("Language", selection: $language) {
+                        Text(verbatim: "English").tag("en")
+                        Text(verbatim: "Deutsch").tag("de")
+                    }
+                } footer: {
+                    Text("Takes effect after restarting the app.")
                 }
                 Section {
                     HStack(spacing: 10) {
                         ForEach(swatches, id: \.self) { hex in
                             Button {
                                 accent = hex
-                                store.confirm("Akzentfarbe geändert")
+                                store.confirm(String(localized: "Accent color changed"))
                             } label: {
                                 Circle()
                                     .fill(hex.isEmpty ? defaultAccent : themeColor(hex))
@@ -46,7 +55,7 @@ struct SettingsView: View {
                             .buttonStyle(.borderless)
                         }
                     }
-                    ColorPicker("Eigene Farbe", selection: Binding(get: { themeColor(accent) }, set: { accent = hexString($0) }), supportsOpacity: false)
+                    ColorPicker("Custom Color", selection: Binding(get: { themeColor(accent) }, set: { accent = hexString($0) }), supportsOpacity: false)
                     HStack {
                         Text("Hex")
                         TextField("#RRGGBB", text: $accent)
@@ -56,13 +65,13 @@ struct SettingsView: View {
                             .multilineTextAlignment(.trailing)
                     }
                     if !accent.isEmpty {
-                        Button("Standardfarbe wiederherstellen") {
+                        Button("Restore Default Color") {
                             accent = ""
-                            store.confirm("Standardfarbe wiederhergestellt")
+                            store.confirm(String(localized: "Default color restored"))
                         }
                     }
                 } header: {
-                    Text("Akzentfarbe")
+                    Text("Accent Color")
                 }
                 Section {
                     NavigationLink {
@@ -71,7 +80,7 @@ struct SettingsView: View {
                         LabeledContent {
                             Text(String(store.trusted.count))
                         } label: {
-                            Label("Vertrauenswürdig", systemImage: "checkmark.seal")
+                            Label("Trusted", systemImage: "checkmark.seal")
                         }
                     }
                     NavigationLink {
@@ -84,11 +93,11 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Absender")
+                    Text("Senders")
                 } footer: {
-                    Text("Vertrauenswürdige Absender landen in „Verifiziert“ und werden direkt mit HTML angezeigt. Spam-Absender werden automatisch in den Spam-Ordner verschoben. Tipp: E-Mail in der Liste gedrückt halten.")
+                    Text("Trusted senders appear in “Verified” and are shown with HTML right away. Spam senders are moved to the spam folder automatically. Tip: press and hold an email in the list.")
                 }
-                Section("Konten") {
+                Section("Accounts") {
                     ForEach(store.accounts) { account in
                         NavigationLink {
                             AccountForm(account: account)
@@ -109,15 +118,15 @@ struct SettingsView: View {
                     Button {
                         adding = true
                     } label: {
-                        Label("Konto hinzufügen", systemImage: "plus")
+                        Label("Add Account", systemImage: "plus")
                     }
                 }
                 Section {
-                    Picker("Abrufen alle", selection: $interval) {
-                        Text("30 Sekunden").tag(30)
+                    Picker("Fetch Every", selection: $interval) {
+                        Text("30 Seconds").tag(30)
                         Text("1 Minute").tag(60)
-                        Text("5 Minuten").tag(300)
-                        Text("15 Minuten").tag(900)
+                        Text("5 Minutes").tag(300)
+                        Text("15 Minutes").tag(900)
                     }
                     Button {
                         Task {
@@ -125,7 +134,7 @@ struct SettingsView: View {
                         }
                     } label: {
                         HStack {
-                            Text("Jetzt abrufen")
+                            Text("Fetch Now")
                             Spacer()
                             if store.syncing {
                                 ProgressView()
@@ -133,45 +142,45 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(store.syncing)
-                    LabeledContent("Letzter Abruf", value: store.lastSync?.formatted(date: .omitted, time: .standard) ?? "–")
-                    LabeledContent("E-Mails im Cache", value: String(store.mails.count))
-                    LabeledContent("Spam-Ordner", value: store.current?.spam ?? "–")
-                    LabeledContent("Papierkorb-Ordner", value: store.current?.trash ?? "–")
-                    LabeledContent("Gesendet-Ordner", value: store.current?.sent ?? "–")
-                    LabeledContent("Ordner gesamt", value: String(store.current?.folders?.count ?? 0))
-                    Toggle("Absender-Icons laden", isOn: $loadIcons)
-                    Button("Icon-Cache leeren") {
+                    LabeledContent("Last Fetch", value: store.lastSync?.formatted(date: .omitted, time: .standard) ?? "–")
+                    LabeledContent("Cached Emails", value: String(store.mails.count))
+                    LabeledContent("Spam Folder", value: store.current?.spam ?? "–")
+                    LabeledContent("Trash Folder", value: store.current?.trash ?? "–")
+                    LabeledContent("Sent Folder", value: store.current?.sent ?? "–")
+                    LabeledContent("Total Folders", value: String(store.current?.folders?.count ?? 0))
+                    Toggle("Load Sender Icons", isOn: $loadIcons)
+                    Button("Clear Icon Cache") {
                         icons.clearCache()
-                        store.confirm("Icon-Cache geleert")
+                        store.confirm(String(localized: "Icon cache cleared"))
                     }
-                    Button("Ordner neu suchen") {
+                    Button("Rediscover Folders") {
                         store.rediscover()
                     }
-                    NavigationLink("Protokoll") {
+                    NavigationLink("Log") {
                         List(Array(store.log.enumerated().reversed()), id: \.offset) { entry in
                             Text(entry.element)
                                 .font(.caption.monospaced())
                         }
-                        .navigationTitle("Protokoll")
+                        .navigationTitle("Log")
                     }
-                    Button("Cache leeren", role: .destructive) {
+                    Button("Clear Cache", role: .destructive) {
                         confirmClear = true
                     }
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
                 } header: {
-                    Text("Entwickler")
+                    Text("Developer")
                 } footer: {
-                    Text("Bei geöffneter App wird im gewählten Abstand abgerufen. Im Hintergrund prüft iOS gelegentlich selbst und meldet neue E-Mails als Mitteilung.")
+                    Text("While the app is open, mail is fetched at the chosen interval. In the background, iOS checks now and then and reports new emails as notifications.")
                 }
             }
             .overlay(alignment: .bottom) {
                 Toast()
             }
-            .navigationTitle("Einstellungen")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Fertig") {
+                    Button("Done") {
                         dismiss()
                     }
                 }
@@ -181,8 +190,8 @@ struct SettingsView: View {
                     AccountForm()
                 }
             }
-            .confirmationDialog("Lokalen Cache dieses Kontos leeren?", isPresented: $confirmClear, titleVisibility: .visible) {
-                Button("Leeren", role: .destructive) {
+            .confirmationDialog("Clear the local cache of this account?", isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("Clear", role: .destructive) {
                     store.clearCache()
                     Task {
                         await store.sync()
@@ -203,16 +212,16 @@ struct RuleList: View {
         List {
             Section {
                 HStack {
-                    TextField("*@domain.de oder name@domain.de", text: $entry)
+                    TextField("*@domain.com or name@domain.com", text: $entry)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onSubmit(add)
-                    Button("Hinzufügen", action: add)
+                    Button("Add", action: add)
                         .disabled(entry.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             } footer: {
-                Text("*@domain.de gilt für alle Adressen der Domain, name@domain.de nur für diese Adresse.")
+                Text("*@domain.com applies to every address of the domain, name@domain.com only to that address.")
             }
             Section {
                 ForEach(rules, id: \.self) { rule in
@@ -225,14 +234,14 @@ struct RuleList: View {
                 .onDelete(perform: remove)
             } footer: {
                 if !spam && !rules.isEmpty {
-                    Text("Tippe auf ein Bild, um ein eigenes Icon festzulegen. Es ersetzt das automatisch geladene.")
+                    Text("Tap an image to set a custom icon. It replaces the one loaded automatically.")
                 }
             }
         }
         .overlay(alignment: .bottom) {
             Toast()
         }
-        .navigationTitle(spam ? "Spam-Absender" : "Vertrauenswürdig")
+        .navigationTitle(spam ? LocalizedStringKey("Spam Senders") : "Trusted")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -261,7 +270,7 @@ struct RuleList: View {
             }
             store.trusted.remove(atOffsets: offsets)
         }
-        store.confirm("Entfernt")
+        store.confirm(String(localized: "Removed"))
     }
 }
 
@@ -286,7 +295,7 @@ struct RuleRow: View {
             .buttonStyle(.borderless)
             VStack(alignment: .leading, spacing: 2) {
                 Text(rule)
-                Text(icons.custom[rule] == nil ? "Automatisches Icon" : "Eigenes Icon")
+                Text(icons.custom[rule] == nil ? LocalizedStringKey("Automatic Icon") : "Custom Icon")
                     .font(.caption)
                     .foregroundStyle(Color.secondary)
             }
@@ -294,7 +303,7 @@ struct RuleRow: View {
             if icons.custom[rule] != nil {
                 Button {
                     icons.setCustom(nil, for: rule)
-                    store.confirm("Eigenes Icon entfernt")
+                    store.confirm(String(localized: "Custom icon removed"))
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Color.secondary)
@@ -307,9 +316,9 @@ struct RuleRow: View {
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
                     icons.setCustom(image, for: rule)
-                    store.confirm("Icon gespeichert")
+                    store.confirm(String(localized: "Icon saved"))
                 } else {
-                    store.toast = "Bild konnte nicht geladen werden"
+                    store.toast = String(localized: "Image could not be loaded")
                     store.failed += 1
                 }
                 self.item = nil

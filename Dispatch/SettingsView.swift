@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("language") private var language = "en"
     @Environment(Icons.self) private var icons
     @State private var adding = false
+    @State private var addingProvider = false
     private let swatches = ["", "#007AFF", "#5856D6", "#AF52DE", "#FF2D55", "#FF3B30", "#34C759", "#30B0C7"]
     @State private var confirmClear = false
 
@@ -122,6 +123,33 @@ struct SettingsView: View {
                     }
                 }
                 Section {
+                    ForEach(store.providers) { provider in
+                        NavigationLink {
+                            ProviderForm(provider: provider)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(provider.name)
+                                Text(provider.imapHost + " · " + provider.smtpHost)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.secondary)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        store.providers.remove(atOffsets: offsets)
+                        store.confirm(String(localized: "Removed"))
+                    }
+                    Button {
+                        addingProvider = true
+                    } label: {
+                        Label("Add Provider", systemImage: "plus")
+                    }
+                } header: {
+                    Text("Providers")
+                } footer: {
+                    Text("Server presets for new accounts. Removing one does not change existing accounts.")
+                }
+                Section {
                     Picker("Fetch Every", selection: $interval) {
                         Text("30 Seconds").tag(30)
                         Text("1 Minute").tag(60)
@@ -188,6 +216,11 @@ struct SettingsView: View {
             .sheet(isPresented: $adding) {
                 NavigationStack {
                     AccountForm()
+                }
+            }
+            .sheet(isPresented: $addingProvider) {
+                NavigationStack {
+                    ProviderForm()
                 }
             }
             .confirmationDialog("Clear the local cache of this account?", isPresented: $confirmClear, titleVisibility: .visible) {

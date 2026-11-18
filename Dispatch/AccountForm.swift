@@ -27,12 +27,18 @@ struct AccountForm: View {
                     .textContentType(.password)
             }
             Section {
-                presetButton("Strato", "imap.strato.de", 993, "smtp.strato.de", 465)
-                presetButton("WEB.DE", "imap.web.de", 993, "smtp.web.de", 587)
+                ForEach(store.providers) { provider in
+                    presetButton(provider)
+                }
+                if !account.imapHost.isEmpty && !account.smtpHost.isEmpty && !store.providers.contains(where: { $0.fits(account) }) {
+                    Button("Save as Provider") {
+                        store.save(Provider(name: account.imapHost, imapHost: account.imapHost, imapPort: account.imapPort, smtpHost: account.smtpHost, smtpPort: account.smtpPort))
+                    }
+                }
             } header: {
                 Text("Fill In Servers")
             } footer: {
-                Text("With WEB.DE, IMAP must be enabled in the webmail under Settings → POP3/IMAP.")
+                Text("Manage providers in Settings.")
             }
             Section("Incoming (IMAP)") {
                 TextField("Server", text: $account.imapHost)
@@ -91,18 +97,18 @@ struct AccountForm: View {
         }
     }
 
-    private func presetButton(_ title: String, _ imapHost: String, _ imapPort: Int, _ smtpHost: String, _ smtpPort: Int) -> some View {
-        let active = account.imapHost == imapHost && account.imapPort == imapPort && account.smtpHost == smtpHost && account.smtpPort == smtpPort
+    private func presetButton(_ provider: Provider) -> some View {
+        let active = provider.fits(account)
         return Button {
             withAnimation {
-                account.imapHost = imapHost
-                account.imapPort = imapPort
-                account.smtpHost = smtpHost
-                account.smtpPort = smtpPort
+                account.imapHost = provider.imapHost
+                account.imapPort = provider.imapPort
+                account.smtpHost = provider.smtpHost
+                account.smtpPort = provider.smtpPort
             }
         } label: {
             HStack {
-                Text(title)
+                Text(provider.name)
                     .foregroundStyle(Color.primary)
                 Spacer()
                 if active {

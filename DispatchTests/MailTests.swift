@@ -101,6 +101,15 @@ final class MailTests: XCTestCase {
         XCTAssertEqual(senderDomain("max@web.de"), "web.de")
     }
 
+    func testProviderFits() {
+        var account = Account()
+        account.imapHost = "imap.web.de"
+        account.smtpHost = "smtp.web.de"
+        account.smtpPort = 587
+        XCTAssertTrue(defaultProviders[1].fits(account))
+        XCTAssertFalse(defaultProviders[0].fits(account))
+    }
+
     func testSearch() {
         var parser = Parser(Data("* SEARCH 3 5 8\r\n".utf8))
         let numbers = parser.responses()[0].dropFirst(2).compactMap { Int($0.string) }

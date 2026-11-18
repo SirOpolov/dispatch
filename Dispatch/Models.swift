@@ -64,6 +64,24 @@ struct Account: Codable, Identifiable, Hashable {
     }
 }
 
+struct Provider: Codable, Identifiable, Hashable {
+    var id = UUID()
+    var name = ""
+    var imapHost = ""
+    var imapPort = 993
+    var smtpHost = ""
+    var smtpPort = 465
+
+    func fits(_ account: Account) -> Bool {
+        account.imapHost == imapHost && account.imapPort == imapPort && account.smtpHost == smtpHost && account.smtpPort == smtpPort
+    }
+}
+
+let defaultProviders = [
+    Provider(name: "Strato", imapHost: "imap.strato.de", imapPort: 993, smtpHost: "smtp.strato.de", smtpPort: 465),
+    Provider(name: "WEB.DE", imapHost: "imap.web.de", imapPort: 993, smtpHost: "smtp.web.de", smtpPort: 587),
+]
+
 struct Mail: Codable, Identifiable, Hashable {
     let uid: Int
     let folder: String

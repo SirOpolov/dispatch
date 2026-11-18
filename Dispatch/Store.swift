@@ -37,6 +37,11 @@ class Store {
             UserDefaults.standard.set(blocked, forKey: "blocked")
         }
     }
+    var providers: [Provider] = UserDefaults.standard.data(forKey: "providers").flatMap { try? JSONDecoder().decode([Provider].self, from: $0) } ?? defaultProviders {
+        didSet {
+            UserDefaults.standard.set(try? JSONEncoder().encode(providers), forKey: "providers")
+        }
+    }
     var unified = UserDefaults.standard.bool(forKey: "unified") {
         didSet {
             UserDefaults.standard.set(unified, forKey: "unified")
@@ -163,6 +168,15 @@ class Store {
         currentID = accounts.first?.id
         note("Account removed: " + account.email)
         confirm(String(localized: "Account removed"))
+    }
+
+    func save(_ provider: Provider) {
+        if let index = providers.firstIndex(where: { $0.id == provider.id }) {
+            providers[index] = provider
+        } else {
+            providers.append(provider)
+        }
+        confirm(String(localized: "Provider saved"))
     }
 
     func trust(_ rule: String) {

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Dispatch
+@testable import DispatchMail
 
 final class MailTests: XCTestCase {
     func testEncodedWords() {

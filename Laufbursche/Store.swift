@@ -118,15 +118,23 @@ class Store {
 
     func connect(_ account: Account, password: String) async throws -> Account {
         var checked = account
-        let imap = try await IMAP(account: account, password: password)
-        defer { imap.close() }
-        let folders = try await imap.folders()
-        checked.spam = folders.spam
-        checked.trash = folders.trash
-        checked.sent = folders.sent
-        checked.folders = folders.all
-        let smtp = try await SMTP(account: account, password: password)
-        smtp.close()
+        do {
+            let imap = try await IMAP(account: account, password: password)
+            defer { imap.close() }
+            let folders = try await imap.folders()
+            checked.spam = folders.spam
+            checked.trash = folders.trash
+            checked.sent = folders.sent
+            checked.folders = folders.all
+        } catch {
+            throw MailError("IMAP: " + error.localizedDescription)
+        }
+        do {
+            let smtp = try await SMTP(account: account, password: password)
+            smtp.close()
+        } catch {
+            throw MailError("SMTP: " + error.localizedDescription)
+        }
         return checked
     }
 

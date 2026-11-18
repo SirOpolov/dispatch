@@ -7,11 +7,11 @@ class SMTP {
         let tls = account.smtpPort == 465
         connection = Connection(host: account.smtpHost, port: account.smtpPort, tls: tls)
         try await expect()
-        try await send("EHLO laufbursche")
+        try await send("EHLO [127.0.0.1]")
         if !tls {
             try await send("STARTTLS")
             connection.startTLS()
-            try await send("EHLO laufbursche")
+            try await send("EHLO [127.0.0.1]")
         }
         let token = Data(("\0" + account.login + "\0" + password).utf8).base64EncodedString()
         try await send("AUTH PLAIN " + token)

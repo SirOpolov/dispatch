@@ -59,6 +59,8 @@ struct AccountForm: View {
                 Section {
                     Label(failure, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
+                } footer: {
+                    Text("Wird die Anmeldung abgelehnt: IMAP-Zugriff beim Anbieter freischalten und bei Zwei-Faktor-Anmeldung ein App-Passwort verwenden.")
                 }
             }
         }

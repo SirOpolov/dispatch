@@ -186,7 +186,14 @@ struct MailboxView: View {
 
     private func row(_ filter: Filter) -> some View {
         NavigationLink(value: filter) {
-            Label(title(filter), systemImage: store.current?.icon(filter) ?? "folder")
+            HStack {
+                Label(title(filter), systemImage: store.current?.icon(filter) ?? "folder")
+                if !store.unified, let folder = store.current?.folder(filter), store.current?.retention?[folder] != nil {
+                    Image(systemName: "timer")
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+            }
         }
         .badge(filter == .read ? 0 : store.unread(filter))
     }
@@ -206,10 +213,13 @@ struct MessageList: View {
     @State private var marked = Set<String>()
     @State private var query = ""
     @State private var confirmAll = false
+    @State private var retaining = false
 
     var body: some View {
         let mails = visible
         let chosen = mails.filter { marked.contains($0.id) }
+        let owner = Set(chosen.map(\.account)).count == 1 ? chosen.first.flatMap(store.account(of:)) : nil
+        let retentionFolder = store.unified ? nil : store.current?.folder(filter)
         Group {
             if editing {
                 List(mails, selection: $marked) { mail in
@@ -222,6 +232,13 @@ struct MessageList: View {
                         row(mail)
                     }
                     .contextMenu {
+                        if let owner = store.account(of: mail) {
+                            MoveMenu(account: owner, current: mail.folder) { folder in
+                                Task {
+                                    await store.move([mail], to: folder)
+                                }
+                            }
+                        }
                         senderMenu(mail)
                     }
                     .swipeActions(edge: .trailing) {
@@ -301,6 +318,13 @@ struct MessageList: View {
                             }
                             .disabled(!mails.contains { !$0.flagged })
                         }
+                        if retentionFolder != nil {
+                            Button {
+                                retaining = true
+                            } label: {
+                                Label("Auto-Delete…", systemImage: "timer")
+                            }
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                     }
@@ -324,6 +348,10 @@ struct MessageList: View {
                         Image(systemName: chosen.contains { !$0.flagged } ? "star" : "star.slash")
                     }
                     .disabled(chosen.isEmpty)
+                    MoveMenu(account: owner ?? Account(), current: chosen.first?.folder) { folder in
+                        finish { await store.move(chosen, to: folder) }
+                    }
+                    .disabled(owner == nil)
                     Button(role: .destructive) {
                         finish { await store.delete(chosen) }
                     } label: {
@@ -341,6 +369,11 @@ struct MessageList: View {
             }
         } message: {
             Text("Favorites are kept. Emails in the trash are deleted permanently.")
+        }
+        .sheet(isPresented: $retaining) {
+            NavigationStack {
+                RetentionForm(folder: retentionFolder ?? "INBOX")
+            }
         }
         .onChange(of: filter) {
             editing = false
@@ -396,6 +429,75 @@ struct MessageList: View {
         marked = []
         Task {
             await action()
+        }
+    }
+}
+
+struct MoveMenu: View {
+    let account: Account
+    var current: String?
+    let move: (String) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(account.syncedFolders.filter { $0 != current }, id: \.self) { folder in
+                Button {
+                    move(folder)
+                } label: {
+                    Label(account.title(.folder(folder)), systemImage: account.icon(.folder(folder)))
+                }
+            }
+        } label: {
+            Label("Move to", systemImage: "folder")
+        }
+    }
+}
+
+struct RetentionForm: View {
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let folder: String
+    @State private var enabled = false
+    @State private var days = 30
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Auto-Delete", isOn: $enabled)
+                if enabled {
+                    Stepper(value: $days, in: 1...3650) {
+                        HStack {
+                            Text("Days")
+                            TextField("Days", value: $days, format: .number.grouping(.never))
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
+            } footer: {
+                Text("Emails older than this, counted from when the app fetched them, move to the trash on the next fetch. In the trash they are deleted permanently. Favorites are kept.")
+            }
+        }
+        .navigationTitle(folder == "INBOX" ? String(localized: "Inbox") : store.current?.title(.folder(folder)) ?? folderName(folder))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", role: .cancel) {
+                    dismiss()
+                }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    store.setRetention(enabled ? min(max(days, 1), 3650) : 0, for: folder)
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            if let saved = store.current?.retention?[folder] {
+                enabled = true
+                days = saved
+            }
         }
     }
 }

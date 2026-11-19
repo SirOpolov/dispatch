@@ -1,152 +1,106 @@
 # Todo
 
-Build/Test laufen nur in CI (GitHub Actions, macos-26): `xcodegen generate && xcodebuild test -scheme Dispatch -destination 'platform=iOS Simulator,name=iPhone 17'`.
+Build und Tests laufen nur in CI (GitHub Actions, macos-26): `xcodegen generate && xcodebuild test -scheme Dispatch -destination 'platform=iOS Simulator,name=iPhone 17'`. Neue Texte auf Englisch im Code, deutsche Übersetzung in `Dispatch/de.lproj/Localizable.strings` (und Schlüssel in `en.lproj`).
 
-## Task 1: WEB.DE verbinden
+## Task 1: Einzelne Mail in beliebigen Ordner verschieben
 
-**Description:** Herausfinden, woran der WEB.DE-Login scheitert, und die Ursache beheben. Code-seitig wahrscheinlichster Kandidat: `EHLO laufbursche` ist kein FQDN. Außerdem verhindert ein SMTP-Fehler das Speichern des ganzen Kontos, ohne zu sagen, ob IMAP oder SMTP schuld war.
+**Description:** `Destination` bekommt `.folder(String)`, `Store.move` nutzt den Namen direkt als Ziel. In `MessageView.actions` ein Untermenü „Move to“ mit allen Ordnern des Kontos außer dem aktuellen. Dasselbe Untermenü im Kontextmenü der Mail-Liste.
 
 **Acceptance criteria:**
-- [ ] Konto-Seite geprüft: WEB.DE-Webmail → Einstellungen → POP3/IMAP → Zugriff erlauben; bei 2-Faktor App-Passwort verwenden
-- [ ] Fehlermeldung im Formular nennt, ob IMAP oder SMTP gescheitert ist (Präfix „IMAP:“ / „SMTP:“)
-- [ ] SMTP grüßt mit `EHLO [127.0.0.1]`
-- [ ] WEB.DE-Konto (IMAP 993, SMTP 587) verbindet, empfängt und sendet
+- [ ] Mail aus dem Posteingang in einen eigenen Ordner verschieben, sie verschwindet aus der Liste und erscheint im Zielordner
+- [ ] Der aktuelle Ordner taucht nicht als Ziel auf
+- [ ] Toast „Moved to <Ordner>“ / „Verschoben nach <Ordner>“
 
 **Verification:**
 - [ ] CI grün
-- [ ] Manuell: WEB.DE-Konto anlegen, Mail an sich selbst senden und empfangen
+- [ ] Manuell: verschieben, Zielordner öffnen, im Webmail gegenprüfen
 
-**Dependencies:** None. Bekannte Meldung: „NO authentication …“ = IMAP-LOGIN abgelehnt
+**Dependencies:** None
 
-**Files likely touched:** `Laufbursche/Store.swift`, `Laufbursche/SMTP.swift`
-
-**Estimated scope:** S
-
-## Task 2: Rebrand und Umzug auf SirOpolov
-
-**Description:** Neuer App-Name überall, Bundle-ID `de.siropolov.dispatch`, BG-Task-ID, Keychain-Service, Ordner, Target, Scheme, Workflow, Git-Remote auf `github.com/SirOpolov/dispatch`.
-
-**Acceptance criteria:**
-- [ ] `grep -ri "greismicha\|laufbursche"` findet nichts mehr (außer Git-Historie)
-- [ ] `project.yml`, Ordner `Dispatch/` und `DispatchTests/`, Workflow-Scheme und IPA-Name passen zusammen
-- [ ] `git remote -v` zeigt `SirOpolov/dispatch`
-- [ ] Lokaler Ordner `~/Development/laufbursche` → `~/Development/dispatch` (letzter Schritt, nach dem Commit, außerhalb der laufenden Session)
-
-**Verification:**
-- [ ] CI grün, Artefakt heißt `Dispatch.ipa`
-- [ ] Manuell: App zeigt neuen Namen auf dem Homescreen, Hintergrundabruf registriert sich
-
-**Dependencies:** None (Name: dispatch)
-
-**Files likely touched:** `project.yml`, `.github/workflows/build.yml`, `Store.swift`, `Models.swift` (Keychain-Service), `SMTP.swift` (MIME-Boundary), Ordner-Umbenennung
+**Files likely touched:** `Dispatch/Models.swift`, `Dispatch/Store.swift`, `Dispatch/MessageView.swift`, `Dispatch/MailboxView.swift`, `Dispatch/*.lproj/Localizable.strings`
 
 **Estimated scope:** M
+
+## Task 2: Mehrere Mails verschieben
+
+**Description:** Im Auswahlmodus von `MessageList` ein Ordner-Knopf in der Leiste unten (Menü mit den Ordnern), wie Gelesen/Favorit/Löschen.
+
+**Acceptance criteria:**
+- [ ] Mehrere Mails auswählen und gemeinsam in einen Ordner verschieben
+- [ ] Knopf deaktiviert bei leerer Auswahl oder Mails aus verschiedenen Konten
+
+**Verification:**
+- [ ] CI grün
+- [ ] Manuell: 3 Mails verschieben, in der Unified Inbox gemischt auswählen → Knopf aus
+
+**Dependencies:** Task 1
+
+**Files likely touched:** `Dispatch/MailboxView.swift`
+
+**Estimated scope:** S
 
 ## Checkpoint 1
 - [ ] CI grün
-- [ ] App startet unter neuem Namen, WEB.DE verbindet
+- [ ] Verschieben am Gerät geprüft
 - [ ] Review mit dir
 
-## Task 3: String Catalog und Sprachwahl
+## Task 3: Lösch-Dauer pro Ordner einstellen
 
-**Description:** `Localizable.xcstrings` anlegen (Quellsprache `en`, Übersetzung `de`), `developmentLanguage: en` in `project.yml`. In den Einstellungen ein Picker System/English/Deutsch, der `AppleLanguages` setzt, mit Hinweis „Gilt nach Neustart“. Settings-Screen und AccountForm als erster vertikaler Schnitt komplett umstellen.
+**Description:** `Account.retention: [String: Int]?` (Ordnername → Tage). Im ⋯-Menü der Ordneransicht „Auto-Delete…“ öffnet ein Formular: Schalter an/aus, Tage per Stepper und Zahlenfeld (1 bis 3650). Unread/Read/All setzen die Regel für INBOX, eigene Ordner, Spam und Papierkorb für sich selbst. Favorites, Verified und Unified Inbox zeigen den Eintrag nicht. Ein aktiver Ordner zeigt in der Seitenleiste ein kleines Timer-Symbol.
 
 **Acceptance criteria:**
-- [ ] Gerät ohne Auswahl auf Englisch: Einstellungen und Kontoformular englisch
-- [ ] Auswahl Deutsch + Neustart: beide Screens deutsch
-- [ ] Auswahl bleibt nach Neustart erhalten
+- [ ] Regel setzen, ändern und ausschalten, sie bleibt nach Neustart erhalten
+- [ ] Footer erklärt: ältere Mails gehen beim Abruf in den Papierkorb, im Papierkorb endgültig, Favoriten bleiben
+- [ ] Bestehende Konten laden ohne Fehler (Feld optional)
 
 **Verification:**
 - [ ] CI grün
-- [ ] Manuell: Sprachwechsel hin und zurück
+- [ ] Manuell: Regel auf einem Ordner setzen, App neu starten, Regel noch da
 
-**Dependencies:** Task 2
+**Dependencies:** None
 
-**Files likely touched:** `project.yml`, `Dispatch/Localizable.xcstrings`, `SettingsView.swift`, `AccountForm.swift`
+**Files likely touched:** `Dispatch/Models.swift`, `Dispatch/Store.swift`, `Dispatch/MailboxView.swift`, `Dispatch/*.lproj/Localizable.strings`
 
 **Estimated scope:** M
 
-## Task 4: Views auf Englisch/Deutsch
+## Task 4: Abgelaufene Mails beim Abruf löschen
 
-**Description:** Restliche SwiftUI-Texte auf englische Keys mit deutscher Übersetzung umstellen.
+**Description:** Freie Funktion `expired(_ mails: [Mail], days: Int, now: Date) -> [Mail]`: älter als `days`, nicht favorisiert. In `Store.download` nach dem Abruf jedes Ordners mit Regel: Treffer per `IMAP.move` in den Papierkorb, im Papierkorb oder ohne Papierkorb per `expunge` endgültig. Lokale Liste und Cache entsprechend bereinigen, Protokolleintrag mit Anzahl.
 
 **Acceptance criteria:**
-- [ ] Mailbox, Nachricht, Verfassen, App-Rahmen ohne deutsche Literale im Code
-- [ ] Profil „Alle Konten“ heißt „Unified Inbox“ / „Gemeinsamer Briefkasten“ (Profilwahl, Kopfzeile)
-- [ ] Alle Keys im Catalog mit deutscher Übersetzung
+- [ ] Mails älter als X Tage verschwinden beim nächsten Abruf aus dem Ordner und liegen im Papierkorb
+- [ ] Favoriten bleiben, jüngere Mails bleiben
+- [ ] Läuft auch beim Hintergrundabruf
+- [ ] Unit-Test für `expired` (Grenze genau X Tage, Favorit, jünger)
 
 **Verification:**
-- [ ] CI grün
-- [ ] Manuell: jeden Screen in beiden Sprachen öffnen
+- [ ] CI grün inkl. neuem Test
+- [ ] Manuell: Regel 1 Tag auf Testordner mit alten Mails, Abruf, Papierkorb prüfen
 
 **Dependencies:** Task 3
 
-**Files likely touched:** `MailboxView.swift`, `MessageView.swift`, `ComposeView.swift`, `DispatchApp.swift`, `Localizable.xcstrings`
-
-**Estimated scope:** M
-
-## Task 5: Toasts, Ordnernamen und Fehler auf Englisch/Deutsch
-
-**Description:** Strings außerhalb von Views über `String(localized:)`: Store-Toasts und Log, `mailCount` (Plural im Catalog), `Account.title(_:)`, Fehlertexte in IMAP/SMTP/MIME/Connection, Mitteilungen.
-
-**Acceptance criteria:**
-- [ ] Toasts und Mitteilungen in gewählter Sprache, inkl. Singular/Plural
-- [ ] Toast beim Wechsel ins gemeinsame Profil: „Unified Inbox“ / „Gemeinsamer Briefkasten“
-- [ ] Bestehende Tests angepasst und grün
-
-**Verification:**
-- [ ] CI grün (MailTests)
-- [ ] Manuell: Mails löschen/markieren, Toast in beiden Sprachen
-
-**Dependencies:** Task 3
-
-**Files likely touched:** `Store.swift`, `Models.swift`, `IMAP.swift`, `SMTP.swift`, `MIME.swift`, `Connection.swift`, `DispatchTests/MailTests.swift`
-
-**Estimated scope:** M
-
-## Checkpoint 2
-- [ ] Englisches Gerät: keine deutschen Texte
-- [ ] Deutsch gewählt: alles deutsch
-- [ ] Review mit dir
-
-## Task 6: Eigene Anbieter anlegen und löschen
-
-**Description:** `Provider` (name, imapHost, imapPort, smtpHost, smtpPort) als Liste in `Store`, in UserDefaults als JSON. Strato und WEB.DE beim ersten Start vorbelegt. Einstellungen: Abschnitt „Providers“ mit Hinzufügen-Formular und Wischen-zum-Löschen. Kontoformular listet die gespeicherten Anbieter statt der festen Buttons und bietet „Save as provider“ für die eingetragenen Server.
-
-**Acceptance criteria:**
-- [ ] Anbieter anlegen, er erscheint im Kontoformular und füllt die Felder
-- [ ] Anbieter löschen (auch Strato/WEB.DE), er bleibt nach Neustart weg
-- [ ] Bestehende Konten bleiben unverändert, wenn ihr Anbieter gelöscht wird
-
-**Verification:**
-- [ ] CI grün, ein Test für Speichern/Laden der Anbieterliste
-- [ ] Manuell: anlegen, nutzen, löschen, Neustart
-
-**Dependencies:** Task 3 (Texte direkt englisch/deutsch)
-
-**Files likely touched:** `Models.swift`, `Store.swift`, `SettingsView.swift`, `AccountForm.swift`, `Localizable.xcstrings`
-
-**Estimated scope:** M
-
-## Task 7: README, LICENSE, Release
-
-**Description:** README komplett auf Englisch im nightshift-Aufbau: Icon, Badges (Download, CI, iOS 26, MIT, PayPal), Kurzbeschreibung, Features, Installieren (Sideloadly/iloader), Updates, Troubleshooting inkl. WEB.DE-IMAP-Freischaltung und App-Passwort, Entwickeln, Support, Lizenz. MIT-`LICENSE`. Workflow: Tags `v*`, `permissions: contents: write`, Release-Step mit `gh release create`.
-
-**Acceptance criteria:**
-- [ ] README rendert auf GitHub mit funktionierenden Badges und Links auf SirOpolov
-- [ ] Feature-Liste deckt Unified Inbox, Sprachen, eigene Anbieter ab
-- [ ] Tag `v1.0.0` erzeugt ein Release mit IPA
-
-**Verification:**
-- [ ] Manuell: README auf GitHub ansehen, Release-Seite prüfen
-
-**Dependencies:** Task 2, Task 6
-
-**Files likely touched:** `README.md`, `LICENSE`, `.github/workflows/build.yml`
+**Files likely touched:** `Dispatch/Models.swift`, `Dispatch/Store.swift`, `DispatchTests/MailTests.swift`
 
 **Estimated scope:** S
 
-## Checkpoint 3
-- [ ] Alle Akzeptanzkriterien erfüllt
-- [ ] Release `v1.0.0` vorhanden
+## Checkpoint 2
+- [ ] CI grün
+- [ ] Regel am Gerät geprüft, Favoriten bleiben
 - [ ] Review mit dir
+
+## Task 5: README und Release v1.1.0
+
+**Description:** Feature-Liste um Verschieben und Auto-Delete ergänzen, `MARKETING_VERSION` auf 1.1, Tag `v1.1.0`.
+
+**Acceptance criteria:**
+- [ ] README nennt beide Funktionen
+- [ ] Release v1.1.0 mit `Dispatch.ipa`
+
+**Verification:**
+- [ ] Release-Seite auf GitHub prüfen
+
+**Dependencies:** Tasks 1 bis 4
+
+**Files likely touched:** `README.md`, `project.yml`
+
+**Estimated scope:** XS

@@ -305,6 +305,7 @@ class Store {
                 case .inbox: "INBOX"
                 case .spam: account.spam
                 case .trash: account.trash
+                case .folder(let name): name
                 }
                 try await withIMAP(account) { imap in
                     for (folder, mails) in Dictionary(grouping: group, by: \.folder) {
@@ -322,6 +323,20 @@ class Store {
             fail(error)
         }
         await sync()
+    }
+
+    func move(_ list: [Mail], to folder: String) async {
+        let name = list.first.flatMap(account(of:))?.title(.folder(folder)) ?? folderName(folder)
+        await move(list, to: .folder(folder), String(localized: "Moved to \(name)"))
+    }
+
+    func setRetention(_ days: Int, for folder: String) {
+        guard var account = current else { return }
+        var rules = account.retention ?? [:]
+        rules[folder] = days > 0 ? days : nil
+        account.retention = rules
+        updateAccount(account)
+        confirm(days > 0 ? String(localized: "Auto-delete after \(days) days") : String(localized: "Auto-delete off"))
     }
 
     func send(_ draft: Draft) async throws {
@@ -389,6 +404,9 @@ class Store {
         }
         var all = loadMails(account.id)
         let first = all.isEmpty
+        for index in all.indices where all[index].fetched == nil {
+            all[index].fetched = .now
+        }
         var fresh: [Mail] = []
         for folder in account.syncedFolders {
             try await imap.select(folder)
@@ -408,6 +426,7 @@ class Store {
             var loaded = try await imap.headers(uids.filter { !known.contains($0) }, folder: folder)
             for index in loaded.indices {
                 loaded[index].account = account.id
+                loaded[index].fetched = .now
             }
             all += loaded
             fresh += loaded
@@ -419,6 +438,23 @@ class Store {
                     all.removeAll { ids.contains($0.id) }
                     fresh.removeAll { ids.contains($0.id) }
                     note(account.email + ": " + String(junk.count) + " moved to spam")
+                }
+            }
+            if let days = account.retention?[folder] {
+                let old = expired(all.filter { $0.folder == folder }, days: days, now: .now)
+                if !old.isEmpty {
+                    if let trash = account.trash, trash != folder {
+                        try await imap.move(old.map(\.uid), to: trash)
+                    } else {
+                        try await imap.expunge(old.map(\.uid))
+                    }
+                    let ids = Set(old.map(\.id))
+                    all.removeAll { ids.contains($0.id) }
+                    fresh.removeAll { ids.contains($0.id) }
+                    for mail in old {
+                        try? FileManager.default.removeItem(at: cacheFile(mail))
+                    }
+                    note(account.email + ": " + String(old.count) + " auto-deleted from " + folder)
                 }
             }
         }

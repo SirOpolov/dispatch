@@ -32,6 +32,10 @@
 "Attachment" = "Attachment";
 "Attachments" = "Attachments";
 "Auto" = "Auto";
+"Auto-Delete" = "Auto-Delete";
+"Auto-Delete…" = "Auto-Delete…";
+"Auto-delete after %lld days" = "Auto-delete after %lld days";
+"Auto-delete off" = "Auto-delete off";
 "Automatic Icon" = "Automatic Icon";
 "Cache cleared" = "Cache cleared";
 "Cached Emails" = "Cached Emails";
@@ -51,6 +55,7 @@
 "Custom icon removed" = "Custom icon removed";
 "Dark" = "Dark";
 "Date: %@" = "Date: %@";
+"Days" = "Days";
 "Default color restored" = "Default color restored";
 "Delete %@?" = "Delete %@?";
 "Delete All" = "Delete All";
@@ -61,6 +66,7 @@
 "Done" = "Done";
 "Email not found" = "Email not found";
 "Email" = "Email";
+"Emails older than this, counted from when the app fetched them, move to the trash on the next fetch. In the trash they are deleted permanently. Favorites are kept." = "Emails older than this, counted from when the app fetched them, move to the trash on the next fetch. In the trash they are deleted permanently. Favorites are kept.";
 "Favorite" = "Favorite";
 "Favorites are kept. Emails in the trash are deleted permanently." = "Favorites are kept. Emails in the trash are deleted permanently.";
 "Favorites" = "Favorites";
@@ -91,6 +97,8 @@
 "Mark as Unread" = "Mark as Unread";
 "Marked as read" = "Marked as read";
 "Marked as unread" = "Marked as unread";
+"Move to" = "Move to";
+"Moved to %@" = "Moved to %@";
 "Moved to inbox" = "Moved to inbox";
 "Moved to spam" = "Moved to spam";
 "Name" = "Name";

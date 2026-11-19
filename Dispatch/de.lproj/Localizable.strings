@@ -32,6 +32,10 @@
 "Attachment" = "Anhang";
 "Attachments" = "Anhänge";
 "Auto" = "Auto";
+"Auto-Delete" = "Automatisch löschen";
+"Auto-Delete…" = "Automatisch löschen…";
+"Auto-delete after %lld days" = "Automatisch löschen nach %lld Tagen";
+"Auto-delete off" = "Automatisch löschen aus";
 "Automatic Icon" = "Automatisches Icon";
 "Cache cleared" = "Cache geleert";
 "Cached Emails" = "E-Mails im Cache";
@@ -51,6 +55,7 @@
 "Custom icon removed" = "Eigenes Icon entfernt";
 "Dark" = "Dunkel";
 "Date: %@" = "Datum: %@";
+"Days" = "Tage";
 "Default color restored" = "Standardfarbe wiederhergestellt";
 "Delete %@?" = "%@ löschen?";
 "Delete All" = "Alle löschen";
@@ -61,6 +66,7 @@
 "Done" = "Fertig";
 "Email not found" = "E-Mail nicht gefunden";
 "Email" = "E-Mail";
+"Emails older than this, counted from when the app fetched them, move to the trash on the next fetch. In the trash they are deleted permanently. Favorites are kept." = "Ältere E-Mails, gezählt ab dem Abruf durch die App, wandern beim nächsten Abruf in den Papierkorb. Im Papierkorb werden sie endgültig gelöscht. Favoriten bleiben erhalten.";
 "Favorite" = "Favorit";
 "Favorites are kept. Emails in the trash are deleted permanently." = "Favoriten bleiben erhalten. Im Papierkorb wird endgültig gelöscht.";
 "Favorites" = "Favoriten";
@@ -91,6 +97,8 @@
 "Mark as Unread" = "Als ungelesen markieren";
 "Marked as read" = "Als gelesen markiert";
 "Marked as unread" = "Als ungelesen markiert";
+"Move to" = "Verschieben nach";
+"Moved to %@" = "Verschoben nach %@";
 "Moved to inbox" = "In den Posteingang verschoben";
 "Moved to spam" = "In Spam verschoben";
 "Name" = "Name";

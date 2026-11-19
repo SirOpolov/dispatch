@@ -14,9 +14,18 @@ struct Account: Codable, Identifiable, Hashable {
     var trash: String?
     var sent: String?
     var folders: [String]?
+    var retention: [String: Int]?
 
     var title: String {
         name.isEmpty ? email : name
+    }
+
+    func folder(_ filter: Filter) -> String? {
+        switch filter {
+        case .unread, .read, .all: "INBOX"
+        case .folder(let name): name
+        default: nil
+        }
     }
 
     var login: String {
@@ -94,6 +103,7 @@ struct Mail: Codable, Identifiable, Hashable {
     var flagged: Bool
     var messageID: String
     var account: UUID?
+    var fetched: Date?
 
     var id: String {
         (account?.uuidString ?? "") + "/" + folder + "/" + String(uid)
@@ -109,8 +119,14 @@ enum Filter: Hashable {
     case folder(String)
 }
 
-enum Destination {
+enum Destination: Equatable {
     case inbox, spam, trash
+    case folder(String)
+}
+
+func expired(_ mails: [Mail], days: Int, now: Date) -> [Mail] {
+    let limit = now.addingTimeInterval(-Double(days) * 86400)
+    return mails.filter { !$0.flagged && ($0.fetched ?? now) <= limit }
 }
 
 func matches(_ rule: String, _ from: String) -> Bool {

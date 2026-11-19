@@ -158,6 +158,14 @@ struct MessageView: View {
         if mail.folder == owner?.trash {
             moveButton("Restore", "tray.and.arrow.up", .inbox, String(localized: "Restored"))
         }
+        if let owner {
+            MoveMenu(account: owner, current: mail.folder) { folder in
+                close()
+                Task {
+                    await store.move([mail], to: folder)
+                }
+            }
+        }
         Section(address(mail.from).lowercased()) {
             Button {
                 store.trust(address(mail.from))

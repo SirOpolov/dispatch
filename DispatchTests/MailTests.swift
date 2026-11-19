@@ -110,6 +110,15 @@ final class MailTests: XCTestCase {
         XCTAssertFalse(defaultProviders[0].fits(account))
     }
 
+    func testExpired() {
+        let now = Date()
+        func mail(_ uid: Int, _ age: Double, flagged: Bool = false) -> Mail {
+            Mail(uid: uid, folder: "INBOX", from: "", to: "", cc: "", subject: "", date: now, seen: true, flagged: flagged, messageID: "", fetched: now.addingTimeInterval(-age * 86400))
+        }
+        let mails = [mail(1, 10), mail(2, 7), mail(3, 6.9), mail(4, 30, flagged: true)]
+        XCTAssertEqual(expired(mails, days: 7, now: now).map(\.uid), [1, 2])
+    }
+
     func testSearch() {
         var parser = Parser(Data("* SEARCH 3 5 8\r\n".utf8))
         let numbers = parser.responses()[0].dropFirst(2).compactMap { Int($0.string) }

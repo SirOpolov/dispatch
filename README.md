@@ -126,8 +126,6 @@ Texts are written in English in the code, German translations live in `Dispatch/
 
 ## Support
 
-dispatch is free and stays free.
-
 Buy me a coffee:
 
 <p align="center">

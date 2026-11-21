@@ -277,7 +277,7 @@ struct MessageList: View {
             }
         }
         .navigationTitle(store.current?.title(filter) ?? "")
-        .modifier(Search(enabled: store.unified, query: $query))
+        .searchable(text: $query, prompt: store.unified ? Text("Search All Accounts") : Text("Search"))
         .refreshable {
             await store.refresh()
         }
@@ -498,20 +498,6 @@ struct RetentionForm: View {
                 enabled = true
                 days = saved
             }
-        }
-    }
-}
-
-struct Search: ViewModifier {
-    let enabled: Bool
-    @Binding var query: String
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if enabled {
-            content.searchable(text: $query, prompt: "Search All Accounts")
-        } else {
-            content
         }
     }
 }

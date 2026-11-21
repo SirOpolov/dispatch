@@ -23,6 +23,7 @@ A small, fast mail client for iOS 26 built with SwiftUI and Liquid Glass. No acc
 - **One profile per address.** Switch accounts at the top of the sidebar.
 - **Unified Inbox.** One shared profile that shows the emails of all accounts, with search across all of them.
 - **Inbox your way.** Unread, read and all, plus favourites, verified, spam, trash and every other server folder.
+- **Search.** Filter any folder by subject, sender or recipient.
 - **Bulk actions.** Multi-select, mark all as read, delete all (favourites stay).
 - **Folders.** Move single or selected emails to any server folder.
 - **Auto-delete.** Per folder, emails older than a chosen number of days (counted from when the app fetched them) go to the trash. Favourites stay.

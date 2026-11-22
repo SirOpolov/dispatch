@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Projekt erzeugen
         run: |
           brew install xcodegen
@@ -29,7 +29,7 @@ jobs:
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/Dispatch.app Payload/
           zip -r Dispatch.ipa Payload
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Dispatch
           path: Dispatch.ipa
